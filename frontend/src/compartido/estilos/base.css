@@ -1,0 +1,101 @@
+/* ============================================================
+   Estilos base — Clínica Vida Salud
+   Reset sencillo, tipografía y clases genéricas reutilizables.
+   Todos los colores salen de variables.css (nunca sueltos).
+   ============================================================ */
+
+/* --- Reset sencillo --- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 16px;
+  color: var(--texto);
+  background: var(--fondo);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: var(--verde-azulado);
+  text-decoration: none;
+}
+
+/* --- Títulos: negrita + fino --- */
+.titulo b {
+  font-weight: 700;
+}
+
+.titulo span {
+  font-weight: 300;
+}
+
+/* --- Botones: mínimo 44px de alto (accesible en móvil) --- */
+.boton-primario,
+.boton-secundario,
+.boton-terciario {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 20px;
+  border: none;
+  border-radius: var(--radio);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+/* Acción principal: único lugar donde se usa el naranja */
+.boton-primario {
+  background: var(--naranja);
+  color: var(--texto);
+}
+
+.boton-primario:hover {
+  background: var(--naranja-oscuro);
+}
+
+.boton-secundario {
+  background: var(--verde-azulado);
+  color: var(--blanco);
+}
+
+.boton-secundario:hover {
+  background: var(--turquesa);
+}
+
+.boton-terciario {
+  background: transparent;
+  color: var(--verde-azulado);
+  border: 2px solid var(--verde-azulado);
+}
+
+.boton-terciario:hover {
+  background: var(--blanco);
+}
+
+/* --- Tarjeta --- */
+.tarjeta {
+  background: var(--blanco);
+  box-shadow: var(--sombra);
+  border-radius: var(--radio);
+}
