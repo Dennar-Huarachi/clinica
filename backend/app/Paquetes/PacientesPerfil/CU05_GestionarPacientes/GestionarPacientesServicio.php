@@ -12,6 +12,10 @@ class GestionarPacientesServicio
         $query = DB::table('pacientes')
             ->join('personas', 'pacientes.id_persona', '=', 'personas.id_persona')
             ->leftJoin('informacion_medica_paciente', 'pacientes.id_paciente', '=', 'informacion_medica_paciente.id_paciente')
+            ->leftJoin('contactos_emergencia', function ($join) {
+                $join->on('pacientes.id_paciente', '=', 'contactos_emergencia.id_paciente')
+                     ->where('contactos_emergencia.es_principal', true);
+            })
             ->select(
                 'pacientes.id_paciente',
                 'pacientes.codigo_historia',
@@ -27,7 +31,10 @@ class GestionarPacientesServicio
                 'personas.correo',
                 'personas.direccion',
                 'informacion_medica_paciente.alergias',
-                'informacion_medica_paciente.enfermedades_cronicas'
+                'informacion_medica_paciente.enfermedades_cronicas',
+                'contactos_emergencia.nombre_completo as contacto_nombre',
+                'contactos_emergencia.relacion as contacto_relacion',
+                'contactos_emergencia.telefono as contacto_telefono'
             )
             ->orderBy('pacientes.id_paciente', 'desc');
 

@@ -4,6 +4,7 @@ namespace App\Paquetes\CatalogosHorarios\CU07_GestionarEspecialidades;
 
 use Illuminate\Support\Facades\DB;
 use App\Nucleo\Bitacora\ServicioBitacora;
+use App\Http\Requests\Paquetes\CatalogosHorarios\CU07_GestionarEspecialidades\GuardarEspecialidadRequest;
 
 class GestionarEspecialidadesServicio
 {
@@ -12,7 +13,11 @@ class GestionarEspecialidadesServicio
         $query = DB::table('especialidades')->orderBy('nombre');
 
         if ($termino) {
-            $query->where('nombre', 'ilike', "%{$termino}%");
+            $norm = GuardarEspecialidadRequest::normalizar($termino);
+            $query->where(function ($q) use ($termino, $norm) {
+                $q->where('nombre', 'ilike', "%{$termino}%")
+                  ->orWhere('nombre_normalizado', 'like', "%{$norm}%");
+            });
         }
 
         if ($estado) {
@@ -24,10 +29,14 @@ class GestionarEspecialidadesServicio
 
     public function crear(array $datos): int
     {
+        $nombreNormalizado = GuardarEspecialidadRequest::normalizar($datos['nombre']);
+
         $id = DB::table('especialidades')->insertGetId([
-            'nombre' => $datos['nombre'],
+            'nombre' => trim($datos['nombre']),
+            'nombre_normalizado' => $nombreNormalizado,
             'descripcion' => $datos['descripcion'] ?? null,
             'duracion_turno_minutos' => $datos['duracion_turno_minutos'] ?? 15,
+            'reservable_en_linea' => $datos['reservable_en_linea'] ?? true,
             'estado' => $datos['estado'] ?? 'activo',
             'created_at' => now(),
             'updated_at' => now(),
@@ -39,7 +48,11 @@ class GestionarEspecialidadesServicio
             'especialidades',
             (string)$id,
             null,
-            ['nombre' => $datos['nombre']]
+            [
+                'nombre' => $datos['nombre'],
+                'nombre_normalizado' => $nombreNormalizado,
+                'reservable_en_linea' => $datos['reservable_en_linea'] ?? true
+            ]
         );
 
         return $id;
@@ -52,10 +65,18 @@ class GestionarEspecialidadesServicio
             throw new \Exception('Especialidad no encontrada', 404);
         }
 
+        $nombreNormalizado = GuardarEspecialidadRequest::normalizar($datos['nombre']);
+
+        $reservable = array_key_exists('reservable_en_linea', $datos)
+            ? (bool)$datos['reservable_en_linea']
+            : ($especialidad->reservable_en_linea ?? true);
+
         DB::table('especialidades')->where('id_especialidad', $id)->update([
-            'nombre' => $datos['nombre'],
+            'nombre' => trim($datos['nombre']),
+            'nombre_normalizado' => $nombreNormalizado,
             'descripcion' => $datos['descripcion'] ?? null,
             'duracion_turno_minutos' => $datos['duracion_turno_minutos'] ?? $especialidad->duracion_turno_minutos,
+            'reservable_en_linea' => $reservable,
             'estado' => $datos['estado'] ?? $especialidad->estado,
             'updated_at' => now(),
         ]);
@@ -70,7 +91,7 @@ class GestionarEspecialidadesServicio
         );
     }
 
-    public function alternarEstado(int $id): string
+    public function alternarEstado(int $id): array
     {
         $especialidad = DB::table('especialidades')->where('id_especialidad', $id)->first();
         if (!$especialidad) {
@@ -78,6 +99,31 @@ class GestionarEspecialidadesServicio
         }
 
         $nuevoEstado = $especialidad->estado === 'activo' ? 'inactivo' : 'activo';
+        $advertencia = null;
+        $medicosActivos = 0;
+        $citasFuturas = 0;
+
+        // Regla de Negocio CU-07: Si se desactiva, verificar dependencias activas (médicos y citas futuras)
+        if ($nuevoEstado === 'inactivo') {
+            $medicosActivos = DB::table('medico_especialidad')
+                ->join('medicos', 'medicos.id_medico', '=', 'medico_especialidad.id_medico')
+                ->where('medico_especialidad.id_especialidad', $id)
+                ->where('medicos.estado', 'activo')
+                ->count();
+
+            $hoy = date('Y-m-d');
+            $citasFuturas = DB::table('citas')
+                ->join('estados_cita', 'estados_cita.id_estado_cita', '=', 'citas.id_estado_cita')
+                ->where('citas.id_especialidad', $id)
+                ->where('citas.fecha_cita', '>=', $hoy)
+                ->whereIn('estados_cita.codigo', ['programada', 'confirmada', 'pendiente', 'en_espera'])
+                ->where('citas.estado', 'activo')
+                ->count();
+
+            if ($medicosActivos > 0 || $citasFuturas > 0) {
+                $advertencia = "La especialidad tiene {$medicosActivos} médico(s) activo(s) y {$citasFuturas} cita(s) futura(s) asociada(s). Dejará de ofrecerse en nuevos turnos, pero las citas programadas se mantienen vigentes (CU-07).";
+            }
+        }
 
         DB::table('especialidades')->where('id_especialidad', $id)->update([
             'estado' => $nuevoEstado,
@@ -90,9 +136,20 @@ class GestionarEspecialidadesServicio
             'especialidades',
             (string)$id,
             ['estado' => $especialidad->estado],
-            ['estado' => $nuevoEstado]
+            [
+                'estado' => $nuevoEstado,
+                'medicos_asociados' => $medicosActivos,
+                'citas_futuras' => $citasFuturas,
+                'advertencia' => $advertencia,
+            ]
         );
 
-        return $nuevoEstado;
+        return [
+            'estado' => $nuevoEstado,
+            'advertencia' => $advertencia,
+            'medicos_asociados' => $medicosActivos,
+            'citas_futuras' => $citasFuturas,
+        ];
     }
 }
+

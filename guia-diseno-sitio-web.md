@@ -207,13 +207,14 @@ Tarjetas: **Agendar cita, Encontrar un médico, Especialidades, Mis citas, Consu
 
 | Elemento | Celular | Escritorio |
 |---|---|---|
-| Tablas | **Tarjetas apiladas** (una por registro) | Tabla normal |
+| Tablas | **Tarjetas apiladas / Acordeón vertical** (sin scroll lateral) | Tabla normal |
 | Agenda | Lista del día con selector de fecha | Vista de semana por horas |
 | Elección de turno | Cuadrícula de botones con la hora, **3 columnas** | **6 o más columnas** |
 | Formularios | **1 columna** | **2 columnas** |
 | Ventanas emergentes | **Pantalla completa** | Cuadro centrado |
 | Reportes | **Filtros plegables**; gráficos y tablas ajustados al ancho | Filtros visibles |
 
+- **Tablas en móviles (≤ 640px):** Prohibido el scroll horizontal. La fila compacta colapsada muestra únicamente 2 o 3 datos esenciales. Al desplegar el acordeón, los datos secundarios se distribuyen en 1 sola columna vertical (100% ancho) y los botones de acción se apilan verticalmente (`flex-direction: column`) ocupando el 100% del ancho con altura táctil mínima de 44px.
 - Turnos ocupados: se ven **deshabilitados** (gris + texto "Ocupado").
 - Formularios: **mensaje de error debajo de cada campo**.
 

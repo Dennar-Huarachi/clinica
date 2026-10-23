@@ -142,8 +142,8 @@ export default function PaginaReservaCitas() {
 
   return (
     <LayoutPrincipal>
-      <div style={{ maxWidth: '800px', margin: '1rem auto' }}>
-        <div className="tarjeta">
+      <div style={{ maxWidth: '800px', margin: '0.5rem auto', width: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
+        <div className="tarjeta" style={{ overflowX: 'hidden', width: '100%', boxSizing: 'border-box' }}>
           <h2 className="titulo" style={{ marginBottom: '0.25rem' }}>
             <b>Reserva</b> <span>de Citas Médicas</span>
           </h2>

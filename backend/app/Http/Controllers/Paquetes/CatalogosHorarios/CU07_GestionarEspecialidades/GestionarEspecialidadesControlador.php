@@ -46,8 +46,10 @@ class GestionarEspecialidadesControlador extends Controller
     public function alternarEstado(int $id): JsonResponse
     {
         try {
-            $nuevoEstado = $this->servicio->alternarEstado($id);
-            return RespuestaApi::exito(['estado' => $nuevoEstado], "Estado de especialidad actualizado a {$nuevoEstado}");
+            $resultado = $this->servicio->alternarEstado($id);
+            $mensaje = $resultado['advertencia'] ?? "Estado de especialidad actualizado a {$resultado['estado']}";
+
+            return RespuestaApi::exito($resultado, $mensaje);
         } catch (\Exception $e) {
             return RespuestaApi::error('Error al cambiar estado de especialidad: ' . $e->getMessage(), 400);
         }

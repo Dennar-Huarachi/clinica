@@ -30,6 +30,7 @@ class ManejadorSesion
                 'usuarios.nombre_usuario',
                 'usuarios.correo',
                 'usuarios.id_rol',
+                'usuarios.ultimo_acceso',
                 'roles.nombre as rol',
                 'personas.id_persona',
                 'personas.nombres',

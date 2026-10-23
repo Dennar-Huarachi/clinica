@@ -88,6 +88,8 @@ Route::middleware(['sesion.clinica'])->group(function () {
     // --- PAQUETE 2: PacientesPerfil ---
     Route::get('/perfil/mi-perfil', [GestionarMiPerfilControlador::class, 'show']);
     Route::put('/perfil/mi-perfil', [GestionarMiPerfilControlador::class, 'update']);
+    Route::get('/perfil', [GestionarMiPerfilControlador::class, 'show']);
+    Route::put('/perfil', [GestionarMiPerfilControlador::class, 'update']);
 
     // --- PAQUETE 4: CitasNotificaciones ---
     Route::get('/citas', [GestionarCitasControlador::class, 'index']);
@@ -149,6 +151,12 @@ Route::middleware(['sesion.clinica'])->group(function () {
         Route::put('/administracion/usuarios/{id}', [AdministrarUsuariosRolesControlador::class, 'update']);
         Route::patch('/administracion/usuarios/{id}/alternar-estado', [AdministrarUsuariosRolesControlador::class, 'alternarEstado']);
 
+        // Gestión de Roles y Matriz Modular de Permisos (CU04)
+        Route::get('/admin/roles', [AdministrarUsuariosRolesControlador::class, 'roles']);
+        Route::post('/admin/roles', [AdministrarUsuariosRolesControlador::class, 'crearRol']);
+        Route::get('/admin/roles/{id}/permisos', [AdministrarUsuariosRolesControlador::class, 'permisosRol']);
+        Route::put('/admin/roles/{id}/permisos', [AdministrarUsuariosRolesControlador::class, 'sincronizarPermisosRol']);
+
         // CU07
         Route::post('/catalogos/especialidades', [GestionarEspecialidadesControlador::class, 'store']);
         Route::put('/catalogos/especialidades/{id}', [GestionarEspecialidadesControlador::class, 'update']);
@@ -162,6 +170,7 @@ Route::middleware(['sesion.clinica'])->group(function () {
         // CU09 & CU11
         Route::get('/catalogos/horarios', [GestionarHorariosAtencionControlador::class, 'index']);
         Route::post('/catalogos/horarios', [GestionarHorariosAtencionControlador::class, 'store']);
+        Route::put('/catalogos/horarios/{id}', [GestionarHorariosAtencionControlador::class, 'update']);
         Route::patch('/catalogos/horarios/{id}/alternar-estado', [GestionarHorariosAtencionControlador::class, 'alternarEstado']);
 
         Route::get('/catalogos/suspensiones', [SuspenderHorarioControlador::class, 'index']);

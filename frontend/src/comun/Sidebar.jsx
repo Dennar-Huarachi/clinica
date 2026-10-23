@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../compartido/utilidades/api';
 import { obtenerMenuPorRol } from './rutasPorRol';
+import ModalCambiarContrasena from '../Paquetes/AccesoCuentas/CU02_CambiarContrasena/ModalCambiarContrasena';
 
 /**
  * Catálogo de iconos SVG en línea para cada módulo institucional
@@ -142,6 +143,14 @@ function IconoMenu({ nombre }) {
           <line x1="14" y1="15" x2="14" y2="9" />
         </svg>
       );
+    case 'candado':
+    case 'llave':
+      return (
+        <svg {...propsIcono}>
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+      );
     case 'usuario':
     default:
       return (
@@ -154,6 +163,7 @@ function IconoMenu({ nombre }) {
 }
 
 export default function Sidebar({ onCerrarDrawer }) {
+  const [modalPasswordAbierto, setModalPasswordAbierto] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -177,95 +187,134 @@ export default function Sidebar({ onCerrarDrawer }) {
   };
 
   return (
-    <aside className="sidebar-clinica">
-      {/* 1. Cabecera del Sidebar */}
-      <div className="sidebar-cabecera">
-        <Link
-          to="/"
-          className="sidebar-brand-enlace"
-          onClick={() => onCerrarDrawer && onCerrarDrawer()}
-        >
-          <div className="sidebar-isotipo">
+    <>
+      <aside className="sidebar-clinica">
+        {/* 1. Cabecera del Sidebar */}
+        <div className="sidebar-cabecera">
+          <Link
+            to="/"
+            className="sidebar-brand-enlace"
+            onClick={() => onCerrarDrawer && onCerrarDrawer()}
+          >
+            <div className="sidebar-isotipo">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#FFFFFF"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </div>
+            <div className="sidebar-brand-texto">
+              <span className="sidebar-titulo-clinica">Clínica</span>
+              <span className="sidebar-titulo-vidasalud">Vida Salud</span>
+            </div>
+          </Link>
+        </div>
+
+        {/* 2. Lista de Enlaces Categorizados */}
+        <nav className="sidebar-navegacion" aria-label="Menú principal de navegación">
+          {secciones.map((sec, idxSec) => (
+            <div key={idxSec} className="sidebar-grupo-seccion">
+              <div className="sidebar-seccion-titulo">{sec.seccion}</div>
+              <ul className="sidebar-lista-items">
+                {sec.items.map((item, idxItem) => {
+                  const esActivo = location.pathname === item.ruta;
+                  return (
+                    <li key={idxItem} className="sidebar-item-fila">
+                      <NavLink
+                        to={item.ruta}
+                        className={({ isActive }) =>
+                          `sidebar-link ${isActive || esActivo ? 'sidebar-link-activo' : ''}`
+                        }
+                        onClick={() => onCerrarDrawer && onCerrarDrawer()}
+                        title={item.descripcion}
+                      >
+                        <span className="sidebar-link-icono">
+                          <IconoMenu nombre={item.icono} />
+                        </span>
+                        <span className="sidebar-link-texto">{item.titulo}</span>
+                      </NavLink>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+
+          {/* Sección CUENTA Global para TODOS los roles */}
+          <div className="sidebar-grupo-seccion">
+            <div className="sidebar-seccion-titulo">CUENTA</div>
+            <ul className="sidebar-lista-items">
+              <li className="sidebar-item-fila">
+                <NavLink
+                  to={rol === 'paciente' ? '/paciente/perfil' : '/perfil'}
+                  className={({ isActive }) =>
+                    `sidebar-link ${isActive ? 'sidebar-link-activo' : ''}`
+                  }
+                  onClick={() => onCerrarDrawer && onCerrarDrawer()}
+                  title="Configuración de perfil y datos personales"
+                >
+                  <span className="sidebar-link-icono">
+                    <IconoMenu nombre="usuario" />
+                  </span>
+                  <span className="sidebar-link-texto">Mi Perfil</span>
+                </NavLink>
+              </li>
+              <li className="sidebar-item-fila">
+                <button
+                  type="button"
+                  className="sidebar-link sidebar-boton-cambiar-clave"
+                  onClick={() => {
+                    if (onCerrarDrawer) onCerrarDrawer();
+                    setModalPasswordAbierto(true);
+                  }}
+                  title="Cambiar contraseña de seguridad de la cuenta"
+                >
+                  <span className="sidebar-link-icono">
+                    <IconoMenu nombre="candado" />
+                  </span>
+                  <span className="sidebar-link-texto">Cambiar Contraseña</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+        </nav>
+
+        {/* 3. Pie del Sidebar (Anclado al fondo con Cerrar Sesión) */}
+        <div className="sidebar-pie">
+          <button
+            type="button"
+            onClick={cerrarSesion}
+            className="sidebar-boton-logout"
+            title="Finalizar sesión actual y salir del sistema"
+          >
             <svg
-              width="24"
-              height="24"
+              width="18"
+              height="18"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#FFFFFF"
-              strokeWidth="2.5"
+              stroke="currentColor"
+              strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
             </svg>
-          </div>
-          <div className="sidebar-brand-texto">
-            <span className="sidebar-titulo-clinica">Clínica</span>
-            <span className="sidebar-titulo-vidasalud">Vida Salud</span>
-          </div>
-        </Link>
-      </div>
+            <span>Cerrar sesión</span>
+          </button>
+        </div>
 
-      {/* 2. Lista de Enlaces Categorizados */}
-      <nav className="sidebar-navegacion" aria-label="Menú principal de navegación">
-        {secciones.map((sec, idxSec) => (
-          <div key={idxSec} className="sidebar-grupo-seccion">
-            <div className="sidebar-seccion-titulo">{sec.seccion}</div>
-            <ul className="sidebar-lista-items">
-              {sec.items.map((item, idxItem) => {
-                const esActivo = location.pathname === item.ruta;
-                return (
-                  <li key={idxItem} className="sidebar-item-fila">
-                    <NavLink
-                      to={item.ruta}
-                      className={({ isActive }) =>
-                        `sidebar-link ${isActive || esActivo ? 'sidebar-link-activo' : ''}`
-                      }
-                      onClick={() => onCerrarDrawer && onCerrarDrawer()}
-                      title={item.descripcion}
-                    >
-                      <span className="sidebar-link-icono">
-                        <IconoMenu nombre={item.icono} />
-                      </span>
-                      <span className="sidebar-link-texto">{item.titulo}</span>
-                    </NavLink>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
-      </nav>
-
-      {/* 3. Pie del Sidebar (Anclado al fondo con Cerrar Sesión) */}
-      <div className="sidebar-pie">
-        <button
-          type="button"
-          onClick={cerrarSesion}
-          className="sidebar-boton-logout"
-          title="Finalizar sesión actual y salir del sistema"
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
-          <span>Cerrar sesión</span>
-        </button>
-      </div>
-
-      {/* Estilos CSS encapsulados para el Sidebar */}
-      <style>{`
+        {/* Estilos CSS encapsulados para el Sidebar */}
+        <style>{`
         .sidebar-clinica {
           width: 260px;
           min-width: 260px;
@@ -395,6 +444,16 @@ export default function Sidebar({ onCerrarDrawer }) {
           color: #FFFFFF;
         }
 
+        .sidebar-boton-cambiar-clave {
+          background: transparent;
+          border: none;
+          width: 100%;
+          cursor: pointer;
+          font-family: inherit;
+          text-align: left;
+          outline: none;
+        }
+
         .sidebar-link-activo {
           background-color: #0D5A6E !important;
           color: #FFFFFF !important;
@@ -453,6 +512,13 @@ export default function Sidebar({ onCerrarDrawer }) {
           border-color: rgba(255, 255, 255, 0.35);
         }
       `}</style>
-    </aside>
+      </aside>
+
+      {/* Modal Accesible Global de Cambio de Contraseña */}
+      <ModalCambiarContrasena
+        abierto={modalPasswordAbierto}
+        alCerrar={() => setModalPasswordAbierto(false)}
+      />
+    </>
   );
 }

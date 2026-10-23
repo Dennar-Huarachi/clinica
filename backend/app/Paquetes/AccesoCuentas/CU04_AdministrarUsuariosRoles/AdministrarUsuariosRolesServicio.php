@@ -47,7 +47,138 @@ class AdministrarUsuariosRolesServicio
 
     public function obtenerRoles(): array
     {
-        return DB::table('roles')->orderBy('id_rol')->get()->toArray();
+        return $this->obtenerRolesConConteo();
+    }
+
+    public function obtenerRolesConConteo(): array
+    {
+        return DB::table('roles')
+            ->leftJoin('rol_permiso', 'roles.id_rol', '=', 'rol_permiso.id_rol')
+            ->select(
+                'roles.id_rol',
+                'roles.nombre',
+                'roles.descripcion',
+                DB::raw('COUNT(rol_permiso.id_permiso) as permisos_count')
+            )
+            ->groupBy('roles.id_rol', 'roles.nombre', 'roles.descripcion')
+            ->orderBy('roles.id_rol')
+            ->get()
+            ->map(function ($rol) {
+                $rol->permisos_count = (int)$rol->permisos_count;
+                return $rol;
+            })
+            ->toArray();
+    }
+
+    public function crearRol(array $datos): int
+    {
+        $nombre = trim($datos['nombre'] ?? '');
+        if (empty($nombre)) {
+            throw new \Exception('El nombre del rol es obligatorio.', 422);
+        }
+
+        $existe = DB::table('roles')->where('nombre', $nombre)->exists();
+        if ($existe) {
+            throw new \Exception("Ya existe un rol con el nombre '{$nombre}'.", 422);
+        }
+
+        $idRol = DB::table('roles')->insertGetId([
+            'nombre' => $nombre,
+            'descripcion' => $datos['descripcion'] ?? null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], 'id_rol');
+
+        ServicioBitacora::registrar(
+            'CU04_AdministrarUsuariosRoles',
+            'CREAR_ROL',
+            'roles',
+            (string)$idRol,
+            null,
+            ['nombre' => $nombre, 'descripcion' => $datos['descripcion'] ?? null]
+        );
+
+        return $idRol;
+    }
+
+    public function obtenerPermisosRol(int $idRol): array
+    {
+        $rol = DB::table('roles')->where('id_rol', $idRol)->first();
+        if (!$rol) {
+            throw new \Exception('El rol solicitado no existe.', 404);
+        }
+
+        $asignados = DB::table('rol_permiso')
+            ->where('id_rol', $idRol)
+            ->pluck('id_permiso')
+            ->toArray();
+
+        $asignadosSet = array_flip($asignados);
+
+        $permisos = DB::table('permisos')
+            ->orderBy('modulo')
+            ->orderBy('id_permiso')
+            ->get();
+
+        $modulos = [];
+        foreach ($permisos as $p) {
+            $item = [
+                'id_permiso' => $p->id_permiso,
+                'modulo' => $p->modulo,
+                'nombre' => $p->nombre,
+                'slug' => $p->slug,
+                'descripcion' => $p->descripcion,
+                'asignado' => isset($asignadosSet[$p->id_permiso]),
+            ];
+
+            $modulos[$p->modulo][] = $item;
+        }
+
+        return [
+            'rol' => $rol,
+            'permisos_asignados_count' => count($asignados),
+            'modulos' => $modulos,
+        ];
+    }
+
+    public function sincronizarPermisosRol(int $idRol, array $permisosIds): void
+    {
+        $rol = DB::table('roles')->where('id_rol', $idRol)->first();
+        if (!$rol) {
+            throw new \Exception('El rol solicitado no existe.', 404);
+        }
+
+        DB::transaction(function () use ($idRol, $rol, $permisosIds) {
+            $anteriores = DB::table('rol_permiso')
+                ->where('id_rol', $idRol)
+                ->pluck('id_permiso')
+                ->toArray();
+
+            DB::table('rol_permiso')->where('id_rol', $idRol)->delete();
+
+            $insertar = [];
+            foreach ($permisosIds as $idPermiso) {
+                $insertar[] = [
+                    'id_rol' => $idRol,
+                    'id_permiso' => (int)$idPermiso,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+
+            if (!empty($insertar)) {
+                DB::table('rol_permiso')->insert($insertar);
+            }
+
+            ServicioBitacora::registrar(
+                'CU04_AdministrarUsuariosRoles',
+                'SINCRONIZAR_PERMISOS_ROL',
+                'rol_permiso',
+                (string)$idRol,
+                ['rol' => $rol->nombre, 'permisos' => $anteriores],
+                ['rol' => $rol->nombre, 'permisos' => $permisosIds]
+            );
+        });
     }
 
     public function crear(array $datos): int

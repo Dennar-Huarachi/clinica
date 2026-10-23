@@ -27,17 +27,6 @@ export const RUTAS_POR_ROL = {
           descripcion: 'Atenciones y antecedentes de salud'
         }
       ]
-    },
-    {
-      seccion: 'CUENTA',
-      items: [
-        {
-          titulo: 'Mi Perfil',
-          ruta: '/paciente/perfil',
-          icono: 'usuario',
-          descripcion: 'Datos personales y preferencias'
-        }
-      ]
     }
   ],
 

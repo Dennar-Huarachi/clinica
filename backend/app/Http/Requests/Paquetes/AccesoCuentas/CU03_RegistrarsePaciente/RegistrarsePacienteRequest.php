@@ -18,7 +18,15 @@ class RegistrarsePacienteRequest extends FormRequestPersonalizado
             'correo' => 'required|email|max:100|unique:usuarios,correo',
             'direccion' => 'nullable|string|max:200',
             'nombre_usuario' => 'required|string|min:4|max:50|unique:usuarios,nombre_usuario',
-            'contrasena' => 'required|string|min:6',
+            'contrasena' => [
+                'required',
+                'string',
+                'min:8',
+                'regex:/[A-Z]/',
+                'regex:/[a-z]/',
+                'regex:/[0-9]/',
+                'regex:/[!@#$%^&*(),.?":{}|<>]/',
+            ],
             'grupo_sanguineo' => 'nullable|string|max:10',
         ];
     }
@@ -29,7 +37,9 @@ class RegistrarsePacienteRequest extends FormRequestPersonalizado
             'ci.unique' => 'La cédula de identidad ya se encuentra registrada.',
             'correo.unique' => 'El correo electrónico ya se encuentra registrado.',
             'nombre_usuario.unique' => 'El nombre de usuario ya está en uso. Elija otro.',
-            'contrasena.min' => 'La contraseña debe tener al menos 6 caracteres.',
+            'contrasena.required' => 'La contraseña es obligatoria.',
+            'contrasena.min' => 'La contraseña debe tener al menos 8 caracteres.',
+            'contrasena.regex' => 'La contraseña debe contener al menos una mayúscula, una minúscula, un número y un símbolo especial (!@#$%^&*(),.?":{}|<>).',
         ];
     }
 }

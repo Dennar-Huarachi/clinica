@@ -30,17 +30,39 @@ class GestionarHorariosAtencionControlador extends Controller
             $id = $this->servicio->crear($request->validated());
             return RespuestaApi::exito(['id_horario' => $id], 'Horario de atención registrado con éxito', 201);
         } catch (\Exception $e) {
-            return RespuestaApi::error('Error al registrar horario: ' . $e->getMessage(), 400);
+            $codigo = ($e->getCode() >= 400 && $e->getCode() <= 499) ? $e->getCode() : 400;
+            return RespuestaApi::error($e->getMessage(), $codigo);
+        }
+    }
+
+    public function update(GuardarHorarioRequest $request, int $id): JsonResponse
+    {
+        try {
+            $this->servicio->actualizar($id, $request->validated());
+            return RespuestaApi::exito(null, 'Horario de atención actualizado exitosamente');
+        } catch (\Exception $e) {
+            $codigo = ($e->getCode() >= 400 && $e->getCode() <= 499) ? $e->getCode() : 400;
+            return RespuestaApi::error($e->getMessage(), $codigo);
         }
     }
 
     public function alternarEstado(int $id): JsonResponse
     {
         try {
-            $nuevoEstado = $this->servicio->alternarEstado($id);
-            return RespuestaApi::exito(['estado' => $nuevoEstado], "Estado del horario actualizado a {$nuevoEstado}");
+            $resultado = $this->servicio->alternarEstado($id);
+            $mensaje = "Estado del horario actualizado a {$resultado['estado']}";
+
+            return response()->json([
+                'exito' => true,
+                'mensaje' => $mensaje,
+                'datos' => $resultado,
+                'estado' => $resultado['estado'],
+                'alerta' => $resultado['alerta'],
+                'citas_afectadas' => $resultado['citas_afectadas'],
+            ], 200);
         } catch (\Exception $e) {
-            return RespuestaApi::error('Error al cambiar estado del horario: ' . $e->getMessage(), 400);
+            $codigo = ($e->getCode() >= 400 && $e->getCode() <= 499) ? $e->getCode() : 400;
+            return RespuestaApi::error($e->getMessage(), $codigo);
         }
     }
 }

@@ -52,10 +52,21 @@ class GestionarMedicosControlador extends Controller
     public function alternarEstado(int $id): JsonResponse
     {
         try {
-            $nuevoEstado = $this->servicio->alternarEstado($id);
-            return RespuestaApi::exito(['estado' => $nuevoEstado], "Estado del médico actualizado a {$nuevoEstado}");
+            $resultado = $this->servicio->alternarEstado($id);
+            $mensaje = "Estado del médico actualizado a {$resultado['estado']}";
+
+            return response()->json([
+                'exito' => true,
+                'mensaje' => $mensaje,
+                'datos' => $resultado,
+                'estado' => $resultado['estado'],
+                'alerta' => $resultado['alerta'],
+                'citas_afectadas' => $resultado['citas_afectadas'],
+                'sugerir_suspension' => $resultado['sugerir_suspension'],
+            ], 200);
         } catch (\Exception $e) {
-            return RespuestaApi::error('Error al cambiar estado lógico del médico: ' . $e->getMessage(), 400);
+            $codigo = ($e->getCode() >= 400 && $e->getCode() <= 499) ? $e->getCode() : 400;
+            return RespuestaApi::error($e->getMessage(), $codigo);
         }
     }
 }

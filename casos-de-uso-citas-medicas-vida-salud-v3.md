@@ -214,28 +214,28 @@ Una cita Cancelada libera su turno (RN09).
 #### CU-07 — Gestionar especialidades
 - **Actores:** administrador · **Alcance:** Base
 - **Precondición:** sesión de administrador.
-- **Flujo principal:** 1) Registra, consulta, modifica, desactiva o reactiva una especialidad. 2) Define nombre, descripción opcional, duración por defecto de la cita y si es **reservable en línea** o solo por recepción. 3) El sistema valida que el nombre normalizado no se repita y guarda.
-- **Alternativas:** nombre duplicado: se rechaza. Desactivar una especialidad con médicos asociados: el sistema advierte; deja de ofrecer nuevos turnos pero conserva las citas; al reactivarla vuelve a ofrecer los turnos de los médicos activos que la tengan. Deshabilitar la reserva en línea no afecta las citas ya registradas; recepción puede gestionarlas.
-- **Postcondición:** catálogo actualizado y regla de canal aplicada a la disponibilidad (CU-10) y a las reservas (CU-12).
-- **Referencia:** RF04, RF15, RN18; aclaraciones 11.3 y 11.7.
+- **Flujo principal:** 1) Registra, consulta, modifica, desactiva o reactiva una especialidad. 2) Define nombre, descripción opcional, duración por defecto de la cita y si es **reservable en línea** o solo por recepción. 3) El sistema normaliza el nombre en la columna `nombre_normalizado` (minúsculas, sin tildes, caracteres especiales ni espacios múltiples) y valida su unicidad mediante una restricción canónica `UNIQUE` en PostgreSQL para mitigar colisiones (RF04). 4) Guarda ambos campos (`nombre` y `nombre_normalizado`).
+- **Alternativas:** nombre o nombre normalizado duplicado: se rechaza con error HTTP 422. Desactivar una especialidad con médicos asociados o citas vigentes: el sistema no bloquea la operación pero emite una advertencia informativa (`alerta: "La especialidad tiene X médico(s) activo(s) y Y cita(s) futura(s) asociada(s)..."`) y registra la auditoría con dependencias en `bitacora_auditoria` (RN21); deja de ofrecer nuevos turnos pero conserva las citas programadas; al reactivarla vuelve a ofrecer los turnos de los médicos activos que la tengan. Deshabilitar la reserva en línea no afecta las citas ya registradas; recepción puede gestionarlas.
+- **Postcondición:** catálogo actualizado y regla de canal aplicada a la disponibilidad (CU-10) y a las reservas (CU-12), con trazabilidad en auditoría.
+- **Referencia:** RF04, RF15, RN18, RN21; aclaraciones 11.3 y 11.7.
 
 #### CU-08 — Gestionar médicos
 - **Actores:** administrador (principal); recepcionista y paciente consultan · **Alcance:** Base
 - **Precondición:** especialidades registradas.
-- **Flujo principal:** 1) Registra un médico o busca uno existente. 2) Ingresa o modifica código, número de registro profesional, nombres, apellidos, teléfono y correo. 3) Asigna **una o varias especialidades** activas (un médico puede tener más de una; una especialidad puede tener varios médicos). 4) Activa, desactiva o reactiva al médico. 5) El sistema valida y guarda.
-- **Alternativas:** registro profesional duplicado o dato inválido: no se guarda. Médico sin especialidad: no se activa (tampoco al reactivarlo: debe tener al menos una especialidad activa); sus horarios se conservan al reactivarlo y conviene revisarlos (CU-09). Desactivar un médico con citas futuras: el sistema advierte y propone suspender su horario (CU-11). **Buscar médicos:** recepcionista y paciente buscan por nombre o especialidad y ven solo datos públicos.
+- **Flujo principal:** 1) Registra un médico o busca uno existente. 2) Ingresa o modifica código/matrícula profesional, nombres, apellidos, teléfono y correo. 3) Asigna **una o varias especialidades** activas (un médico puede tener más de una; una especialidad puede tener varios médicos). 4) Activa, desactiva o reactiva al médico. 5) El sistema valida y guarda.
+- **Alternativas:** matrícula profesional o dato duplicado: no se guarda (RN02). Validación estricta de reactivación (RN04): un médico inactivo no se puede activar/reactivar si carece de al menos una especialidad médica activa asignada (se rechaza con error HTTP 422). Desactivar un médico con citas futuras o turnos vigentes: el sistema actualiza lógicamente a `'inactivo'`, emite una advertencia informativa explícita detallando citas y horarios afectados proponiendo suspender su horario en CU-11 (RN11) y audita el evento con el desglose en `bitacora_auditoria` (RN21). **Buscar médicos:** recepcionista y paciente buscan por nombre o especialidad y ven solo datos públicos.
 - **Postcondición:** ficha del médico actualizada; si está inactivo no recibe nuevas citas y sus citas históricas se conservan.
-- **Referencia:** RF03, RN02, RN04, RN11; aclaración 11.3.
+- **Referencia:** RF03, RN02, RN04, RN11, RN21; aclaración 11.3.
 
 ### Horarios
 
 #### CU-09 — Gestionar horarios de atención
 - **Actores:** administrador · **Alcance:** Base
-- **Precondición:** médico registrado y activo.
-- **Flujo principal:** 1) Selecciona médico y día. 2) Registra hora inicial, hora final y duración del turno, **configurable según la especialidad o el médico** (por defecto la de la especialidad). 3) El sistema valida el intervalo y calcula los turnos (por ejemplo, 10:00 a 12:00 con turnos de 15 minutos son 8). 4) Guarda.
-- **Alternativas:** hora final anterior a la inicial, bloques solapados del mismo médico o duración que no encaja en el intervalo: se rechaza. Cambiar un horario con citas futuras: el sistema advierte y no modifica las citas; se resuelven con CU-11. **Opcional (RN20):** registrar feriados o bloqueos de la clínica (fecha o rango y motivo) que excluyen esas fechas para todos los médicos; si ya hay citas registradas en esas fechas, el sistema advierte y se resuelven con CU-11.
-- **Postcondición:** el sistema puede calcular turnos disponibles respetando el horario.
-- **Referencia:** RF05, RN05, RN08, RN20; aclaración 11.3.
+- **Precondición:** médico registrado y activo con al menos una especialidad asignada.
+- **Flujo principal:** 1) Busca y selecciona médico especialista mediante buscador predictivo o selector. 2) Elige la especialidad médica vinculada (heredando automáticamente su duración estándar de CU-07, con ajuste manual permitido). 3) Selecciona día de atención (individual o selección multi-día en lote). 4) Registra hora inicial y hora final; el sistema previsualiza reactivamente en tiempo real la capacidad generada (ej. de 08:00 a 12:00 cada 15 min = 16 turnos). 5) El sistema valida el intervalo, la divisibilidad matemática exacta (RN08) y la prevención de solapamiento global por médico (RN05/RN07). 6) Guarda.
+- **Alternativas:** hora final anterior a la inicial o médico sin esa especialidad: se rechaza. Bloques solapados del mismo médico en el mismo día (evaluado a nivel global del profesional independientemente de la especialidad): se rechaza con error HTTP 422. Rango con residuo no divisible: se rechaza si descuadra la grilla, o se asigna opcionalmente el residuo de tiempo como receso/descanso intermedio del médico a mitad de jornada sin quebrar la matemática de turnos ofertados. Inactivar un horario con citas futuras: el sistema advierte detallando la cantidad de citas afectadas y sugiere gestionar suspensiones (CU-11), auditando en bitácora (RN21). **Opcional (RN20):** registrar feriados o bloqueos de la clínica (fecha o rango y motivo) que excluyen esas fechas para todos los médicos; si ya hay citas registradas en esas fechas, el sistema advierte y se resuelven con CU-11.
+- **Postcondición:** el sistema puede calcular turnos disponibles respetando el horario y la capacidad física del médico.
+- **Referencia:** RF05, RN05, RN07, RN08, RN11, RN20, RN21; aclaración 11.3.
 
 #### CU-10 — Consultar disponibilidad
 - **Actores:** recepcionista, paciente · **Alcance:** Base

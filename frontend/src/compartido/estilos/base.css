@@ -77,10 +77,14 @@ a:hover {
   }
 }
 
-/* Padding para que el contenido no quede oculto bajo la barra fija en móvil (solo dentro de LayoutPrincipal) */
+/* Padding y contención de overflow para móvil (<= 640px) */
 @media (max-width: 640px) {
   .contenedor-principal {
-    padding-bottom: 72px;
+    width: 100%;
+    max-width: 100%;
+    padding: 1rem 0.75rem 72px 0.75rem;
+    overflow-x: hidden;
+    box-sizing: border-box;
   }
 }
 
@@ -207,7 +211,11 @@ button:disabled {
 
 @media (max-width: 640px) {
   .tarjeta {
-    padding: 1.25rem 1rem;
+    padding: 1.25rem 0.875rem;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
   }
 }
 
@@ -361,6 +369,15 @@ button:disabled {
 
 .tabla-clinica tr:hover td {
   background: #F9FCFD;
+}
+
+@media (max-width: 640px) {
+  .tabla-expandible-contenedor {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+  }
 }
 
 /* --- Grid de Turnos --- */

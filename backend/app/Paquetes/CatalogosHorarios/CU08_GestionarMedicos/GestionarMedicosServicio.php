@@ -54,7 +54,12 @@ class GestionarMedicosServicio
             $medico->especialidades = DB::table('medico_especialidad')
                 ->join('especialidades', 'medico_especialidad.id_especialidad', '=', 'especialidades.id_especialidad')
                 ->where('medico_especialidad.id_medico', $medico->id_medico)
-                ->select('especialidades.id_especialidad', 'especialidades.nombre')
+                ->select(
+                    'especialidades.id_especialidad',
+                    'especialidades.nombre',
+                    'especialidades.duracion_turno_minutos',
+                    'especialidades.estado'
+                )
                 ->get()
                 ->toArray();
         }
@@ -160,8 +165,9 @@ class GestionarMedicosServicio
 
     /**
      * PROHIBIDO BORRADO FÍSICO. Desactivación o activación lógica.
+     * Reglas: RN04 (especialidad obligatoria), RN11 (citas futuras y horarios al desactivar), RN21 (auditoría).
      */
-    public function alternarEstado(int $idMedico): string
+    public function alternarEstado(int $idMedico): array
     {
         $medico = DB::table('medicos')->where('id_medico', $idMedico)->first();
         if (!$medico) {
@@ -169,21 +175,74 @@ class GestionarMedicosServicio
         }
 
         $nuevoEstado = $medico->estado === 'activo' ? 'inactivo' : 'activo';
+        $alerta = null;
+        $citasFuturas = 0;
+        $horariosActivos = 0;
+        $sugerirSuspension = false;
+
+        if ($nuevoEstado === 'activo') {
+            // 1. Validación de reactivación (Inactivo -> Activo — RN04):
+            // Debe contar con al menos una especialidad médica activa asociada
+            $especialidadesActivas = DB::table('medico_especialidad')
+                ->join('especialidades', 'medico_especialidad.id_especialidad', '=', 'especialidades.id_especialidad')
+                ->where('medico_especialidad.id_medico', $idMedico)
+                ->where('especialidades.estado', 'activo')
+                ->count();
+
+            if ($especialidadesActivas === 0) {
+                throw new \Exception(
+                    "No se puede activar al médico porque no cuenta con ninguna especialidad médica activa asignada (RN04). Edite su ficha y asigne al menos una especialidad activa.",
+                    422
+                );
+            }
+        } else {
+            // 2. Advertencia de citas futuras y horarios al desactivar (Activo -> Inactivo — RN11):
+            $hoy = date('Y-m-d');
+            $citasFuturas = DB::table('citas')
+                ->join('estados_cita', 'estados_cita.id_estado_cita', '=', 'citas.id_estado_cita')
+                ->where('citas.id_medico', $idMedico)
+                ->where('citas.fecha_cita', '>=', $hoy)
+                ->whereIn('estados_cita.codigo', ['programada', 'confirmada', 'pendiente', 'en_espera'])
+                ->where('citas.estado', 'activo')
+                ->count();
+
+            $horariosActivos = DB::table('horarios_atencion')
+                ->where('id_medico', $idMedico)
+                ->where('estado', 'activo')
+                ->count();
+
+            if ($citasFuturas > 0 || $horariosActivos > 0) {
+                $sugerirSuspension = true;
+                $alerta = "El médico ha sido desactivado. Tiene {$citasFuturas} cita(s) futura(s) programada(s) y horarios de atención vigentes. Se recomienda suspender su horario (CU-11) para reubicar a los pacientes afectados.";
+            }
+        }
 
         DB::table('medicos')->where('id_medico', $idMedico)->update([
             'estado' => $nuevoEstado,
             'updated_at' => now(),
         ]);
 
+        // 3. Auditoría enriquecida (RN21)
         ServicioBitacora::registrar(
             'CU08_GestionarMedicos',
             'CAMBIAR_ESTADO_LOGICO_MEDICO',
             'medicos',
             (string)$idMedico,
             ['estado' => $medico->estado],
-            ['estado' => $nuevoEstado]
+            [
+                'estado' => $nuevoEstado,
+                'citas_afectadas' => $citasFuturas,
+                'horarios_vigentes' => $horariosActivos,
+                'alerta' => $alerta,
+            ]
         );
 
-        return $nuevoEstado;
+        return [
+            'estado' => $nuevoEstado,
+            'alerta' => $alerta,
+            'citas_afectadas' => $citasFuturas,
+            'horarios_activos' => $horariosActivos,
+            'sugerir_suspension' => $sugerirSuspension,
+        ];
     }
 }

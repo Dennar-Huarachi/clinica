@@ -107,5 +107,8 @@ class DatabaseSeeder extends Seeder
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        // 6. Permisos del sistema y matriz modular
+        $this->call(PermisosSeeder::class);
     }
 }

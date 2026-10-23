@@ -551,7 +551,7 @@ Cierre: **Conclusión**, **Recomendación**, **Bibliografía**, **Anexos**.
 | D1 | **Modelo híbrido:** el sistema se usa por dos vías, la ventanilla (recepción) y el portal web del paciente. La frase de la sección 2 ("principalmente al personal administrativo") se lee con este matiz. | Adoptada (11.7) |
 | D2 | **Estados de la cita:** seis, **Programada, Confirmada, Atendida, Cancelada, Inasistencia y Postergada**. Los estados que mencionó la docente (libre, ocupado, reservado) no son estados de la cita: describen el turno y se derivan al calcular la disponibilidad, no se guardan. | Suposición |
 | D3 | **Duración del turno:** configurable. Cada especialidad tiene una duración por defecto (por ejemplo, 15 min) que se puede ajustar por médico u horario. | Adoptada (11.3) |
-| D4 | **Canal de reserva:** cada especialidad tiene la marca "reservable en línea". Recepción puede gestionar todas las especialidades. La marca por médico queda como mejora opcional. | Adoptada (11.7) |
+| D4 | **Canal de reserva y acceso a especialidades:** cada especialidad tiene la marca "reservable en línea". Recepción puede gestionar todas las especialidades. Para evitar la saturación de especialidades médicas críticas sin complejizar el flujo de agendamiento en el Ciclo 1, el control de acceso se delega en la regla RN18 (`reservable_en_linea`). Las especialidades que requieran evaluación o autorización previa se marcan como 'Solo Ventanilla', obligando a su asignación presencial o criterio de recepción. | Adoptada (11.7) |
 | D5 | **Cancelación en línea del paciente:** exige una anticipación mínima configurable (por defecto 2 horas, ver RN15). Recepción cancela sin límite. | Suposición |
 | D6 | **Citas cerradas** (Atendida, Cancelada, Inasistencia): no vuelven a un estado activo (RN16). La única corrección es Atendida ⇄ Inasistencia, hecha por el Administrador con motivo y bitácora. Una cita Cancelada no se reactiva: se programa una nueva. Este es el "procedimiento autorizado" de RF10. | Suposición |
 | D7 | **Citas postergadas:** tienen prioridad de reubicación sobre la reserva pública (RN17), durante una ventana configurable (por defecto 48 h, a partir de la regla de 24 o 48 h que mencionó la docente). | Suposición |
@@ -559,16 +559,20 @@ Cierre: **Conclusión**, **Recomendación**, **Bibliografía**, **Anexos**.
 | D9 | **Consulta de disponibilidad:** requiere sesión iniciada. No hay consulta pública para visitantes sin cuenta. | Suposición |
 | D10 | **Feriados y bloqueos de la clínica:** opcionales, dentro de CU-09 (RN20). Las citas ya registradas en esas fechas se resuelven con CU-11. | Adoptada (RF05, opcional) |
 | D11 | **Notificaciones:** como mínimo, un mensaje dentro del sistema visible al iniciar sesión. Correo o push solo si alcanza el tiempo. | Adoptada como mínimo |
-| D12 | **Bloqueo por inasistencias reiteradas:** descartado por ahora. No viene del enunciado ni de la docente y agrega contador, bloqueo y desbloqueo. Queda como mejora futura. | Descartada |
-| D13 | **Casos de uso:** 26 casos (19 base y 7 opcionales), en 2 ciclos y 6 paquetes (archivo de casos de uso v3). El Ciclo 1 reúne 13 casos y es el que va en la Presentación 1. | Adoptada |
-| D14 | **Casos propios opcionales:** CU-24 (bitácora de auditoría), CU-25 (dashboard administrativo) y CU-26 (copias de seguridad). No vienen del enunciado ni de la docente: son aportes del grupo (11.1) y no cambian el mínimo de 19 casos base y 1 opcional. | Suposición |
+| D12 | **Manejo de intervalos y descansos médicos en CU-09 (RN08):** cuando la duración de una jornada no sea divisible de forma exacta entre el tiempo de turno (ej. franja de 240 min con turnos de 25 min donde sobran 15 min), el sistema no bloquea el registro: permite asignar el tiempo excedente como un receso o descanso intermedio del médico a mitad de jornada, preservando la coherencia matemática de los turnos ofertados. | Adoptada |
+| D13 | **Prevención de colisión horaria médica global (RN05/RN07):** la validación de solapamiento de horarios en CU-09 se evalúa a nivel de profesional (`id_medico` + `dia_semana`), impidiendo cruces de franjas horarias incluso cuando correspondan a especialidades distintas del mismo médico. | Adoptada |
+| D14 | **Casos de uso:** 26 casos (19 base y 7 opcionales), en 2 ciclos y 6 paquetes (archivo de casos de uso v3). El Ciclo 1 reúne 13 casos y es el que va en la Presentación 1. | Adoptada |
+| D15 | **Casos propios opcionales:** CU-24 (bitácora de auditoría), CU-25 (dashboard administrativo) y CU-26 (copias de seguridad). No vienen del enunciado ni de la docente: son aportes del grupo (11.1) y no cambian el mínimo de 19 casos base y 1 opcional. | Suposición |
+| D16 | **Bloqueo por inasistencias reiteradas:** descartado por ahora. No viene del enunciado ni de la docente y agrega contador, bloqueo y desbloqueo. Queda como mejora futura. | Descartada |
 
 ### 12.3. Estado de avance
 - Catálogo de casos de uso v3 definido (26 casos: 19 base y 7 opcionales).
 - Contexto y decisiones de diseño actualizados en esta sección.
-- **Presentación 1 (24/10/2026, Ciclo 1):** CU-01 a CU-05, CU-07 a CU-10 y CU-12 a CU-15 (13 casos: el 56 % de los 23 casos sin los aportes propios, el 50 % de los 26).
+- **Ciclo 1 — Casos Completados e Implementados al 100%:** `CU-01` (Iniciar y cerrar sesión), `CU-02` (Cambiar contraseña), `CU-03` (Registrarse como paciente), `CU-04` (Administrar usuarios y roles con matriz modular), `CU-05` (Gestionar pacientes), `CU-07` (Gestionar especialidades con normalización canónica), `CU-08` (Gestionar médicos con asignación múltiple) y `CU-09` (Gestionar horarios de atención con prevención de colisiones).
+- **Ciclo 1 — Próximos a concluir:** `CU-10` (Consultar disponibilidad), `CU-12` (Gestionar citas), `CU-13` (Registrar asistencia), `CU-14` (Consultar agenda) y `CU-15` (Historial de citas).
+- **Presentación 1 (24/10/2026, Ciclo 1):** CU-01 a CU-05, CU-07 a CU-10 y CU-12 a CU-15 (13 casos base).
 - **Presentación 2 (07/11/2026, Ciclo 2):** CU-06, CU-11, CU-16 a CU-26.
-- Diseño de base de datos, implementación y documento PUDS: _ (completar con el avance real)
+- Diseño de base de datos relacional PostgreSQL migrado e implementado; frontend con diseño mobile-first sin scroll horizontal.
 
 ### 12.4. Pendientes por definir
 - **Confirmar las suposiciones** de 12.2 con tu pareja y, si se puede, con la docente. Las que más pesan en el diseño son D2 (estados), D5 (cancelación en línea), D6 (citas cerradas) y D7 (prioridad de postergadas).
@@ -579,6 +583,7 @@ Cierre: **Conclusión**, **Recomendación**, **Bibliografía**, **Anexos**.
 - **Notificaciones:** si se implementa algún canal además del mensaje dentro del sistema (correo o push).
 - **Reprogramación en línea por el paciente:** hoy solo la hace recepción.
 - **Marca "reservable en línea" por médico:** hoy solo existe por especialidad (D4). La docente habló de "médicos o especialidades".
+- • **Sistema de derivación/interconsulta digital (Ciclo 2 / CU-18):** Evaluar que el médico general pueda habilitar permisos temporales de reserva en línea a especialidades restringidas tras la consulta.
 - **Modalidad de cita** (presencial/virtual) y búsqueda por ubicación: aparecen en 3.4–3.5 pero no en los RF.
 - **Duraciones variables** dentro de un mismo horario (opcional).
 - La transcripción del audio está incompleta (llega solo hasta RF06); si hay más explicación de la docente, agregarla a la sección 11.

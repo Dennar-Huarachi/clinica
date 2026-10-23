@@ -5,6 +5,7 @@ import PaginaInicio from './publico/PaginaInicio';
 import IniciarSesion from './Paquetes/AccesoCuentas/CU01_IniciarCerrarSesion/IniciarSesion';
 import LoginPaciente from './Paquetes/AccesoCuentas/CU01_IniciarCerrarSesion/LoginPaciente';
 import LoginPersonal from './Paquetes/AccesoCuentas/CU01_IniciarCerrarSesion/LoginPersonal';
+import PaginaCambiarContrasena from './Paquetes/AccesoCuentas/CU02_CambiarContrasena/PaginaCambiarContrasena';
 import PaginaRegistroPaciente from './Paquetes/AccesoCuentas/CU03_RegistrarsePaciente/PaginaRegistroPaciente';
 import PaginaUsuariosRoles from './Paquetes/AccesoCuentas/CU04_AdministrarUsuariosRoles/PaginaUsuariosRoles';
 
@@ -13,6 +14,7 @@ import PaginaMiPerfil from './Paquetes/PacientesPerfil/CU06_GestionarMiPerfil/Pa
 
 import PaginaEspecialidades from './Paquetes/CatalogosHorarios/CU07_GestionarEspecialidades/PaginaEspecialidades';
 import PaginaMedicos from './Paquetes/CatalogosHorarios/CU08_GestionarMedicos/PaginaMedicos';
+import PaginaHorarios from './Paquetes/CatalogosHorarios/CU09_GestionarHorariosAtencion/PaginaHorarios';
 
 import PaginaReservaCitas from './Paquetes/CitasNotificaciones/CU12_GestionarCitas/PaginaReservaCitas';
 import PaginaAgendaCitas from './Paquetes/CitasNotificaciones/CU14_ConsultarAgendaCitas/PaginaAgendaCitas';
@@ -79,7 +81,7 @@ export default function App() {
         <Route path="/admin/dashboard" element={<PaginaDashboard />} />
         <Route path="/admin/especialidades" element={<PaginaEspecialidades />} />
         <Route path="/admin/medicos" element={<PaginaMedicos />} />
-        <Route path="/admin/horarios" element={<PaginaAgendaCitas />} />
+        <Route path="/admin/horarios" element={<PaginaHorarios />} />
         <Route path="/admin/citas" element={<PaginaAgendaCitas />} />
         <Route path="/admin/pacientes" element={<PaginaGestionPacientes />} />
         <Route path="/admin/usuarios" element={<PaginaUsuariosRoles />} />
@@ -90,6 +92,7 @@ export default function App() {
         {/* Rutas Generales de Módulos */}
         <Route path="/dashboard" element={<PaginaDashboard />} />
         <Route path="/perfil" element={<PaginaMiPerfil />} />
+        <Route path="/cuenta/cambiar-contrasena" element={<PaginaCambiarContrasena />} />
 
         {/* Citas y Agenda */}
         <Route path="/citas/reserva" element={<PaginaReservaCitas />} />

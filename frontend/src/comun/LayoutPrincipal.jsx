@@ -131,8 +131,20 @@ export default function LayoutPrincipal({ children, titulo }) {
         }
 
         @media (max-width: 640px) {
+          .layout-panel-contenedor,
+          .layout-contenido-columna {
+            overflow-x: hidden !important;
+            max-width: 100vw !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+          }
+
           .layout-main-contenido {
             padding: 16px 12px;
+            overflow-x: hidden !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
           }
         }
       `}</style>

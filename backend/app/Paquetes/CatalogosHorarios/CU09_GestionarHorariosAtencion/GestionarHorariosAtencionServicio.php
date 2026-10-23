@@ -17,7 +17,8 @@ class GestionarHorariosAtencionServicio
                 'horarios_atencion.*',
                 'personas.nombres as medico_nombres',
                 'personas.apellidos as medico_apellidos',
-                'especialidades.nombre as especialidad_nombre'
+                'especialidades.nombre as especialidad_nombre',
+                'especialidades.duracion_turno_minutos as especialidad_duracion_default'
             )
             ->orderBy('horarios_atencion.dia_semana')
             ->orderBy('horarios_atencion.hora_inicio');
@@ -33,8 +34,49 @@ class GestionarHorariosAtencionServicio
         return $query->get()->toArray();
     }
 
+    /**
+     * Prevención de Solapamientos (RN05 / RN07).
+     * Valida que no exista colisión temporal para el mismo médico en el mismo día.
+     */
+    protected function validarSolapamiento(int $idMedico, int $diaSemana, string $horaInicio, string $horaFin, ?int $idHorarioExcluir = null): void
+    {
+        $query = DB::table('horarios_atencion')
+            ->where('id_medico', $idMedico)
+            ->where('dia_semana', $diaSemana)
+            ->where('estado', 'activo')
+            ->where(function ($q) use ($horaInicio, $horaFin) {
+                $q->where('hora_inicio', '<', $horaFin)
+                  ->where('hora_fin', '>', $horaInicio);
+            });
+
+        if ($idHorarioExcluir) {
+            $query->where('id_horario', '!=', $idHorarioExcluir);
+        }
+
+        $colision = $query->first();
+        if ($colision) {
+            $inicioCol = substr($colision->hora_inicio, 0, 5);
+            $finCol = substr($colision->hora_fin, 0, 5);
+            throw new \Exception(
+                "El médico ya tiene un bloque horario configurado este día ({$inicioCol} - {$finCol}) que colisiona con el rango solicitado (RN05/RN07).",
+                422
+            );
+        }
+    }
+
     public function crear(array $datos): int
     {
+        $estado = $datos['estado'] ?? 'activo';
+
+        if ($estado === 'activo') {
+            $this->validarSolapamiento(
+                $datos['id_medico'],
+                $datos['dia_semana'],
+                $datos['hora_inicio'],
+                $datos['hora_fin']
+            );
+        }
+
         $id = DB::table('horarios_atencion')->insertGetId([
             'id_medico' => $datos['id_medico'],
             'id_especialidad' => $datos['id_especialidad'],
@@ -42,7 +84,7 @@ class GestionarHorariosAtencionServicio
             'hora_inicio' => $datos['hora_inicio'],
             'hora_fin' => $datos['hora_fin'],
             'duracion_intervalo_minutos' => $datos['duracion_intervalo_minutos'] ?? 15,
-            'estado' => $datos['estado'] ?? 'activo',
+            'estado' => $estado,
             'created_at' => now(),
             'updated_at' => now(),
         ], 'id_horario');
@@ -59,7 +101,51 @@ class GestionarHorariosAtencionServicio
         return $id;
     }
 
-    public function alternarEstado(int $id): string
+    public function actualizar(int $id, array $datos): void
+    {
+        $horario = DB::table('horarios_atencion')->where('id_horario', $id)->first();
+        if (!$horario) {
+            throw new \Exception('Horario no encontrado', 404);
+        }
+
+        $estado = $datos['estado'] ?? $horario->estado;
+
+        if ($estado === 'activo') {
+            $this->validarSolapamiento(
+                $datos['id_medico'],
+                $datos['dia_semana'],
+                $datos['hora_inicio'],
+                $datos['hora_fin'],
+                $id
+            );
+        }
+
+        DB::table('horarios_atencion')->where('id_horario', $id)->update([
+            'id_medico' => $datos['id_medico'],
+            'id_especialidad' => $datos['id_especialidad'],
+            'dia_semana' => $datos['dia_semana'],
+            'hora_inicio' => $datos['hora_inicio'],
+            'hora_fin' => $datos['hora_fin'],
+            'duracion_intervalo_minutos' => $datos['duracion_intervalo_minutos'] ?? 15,
+            'estado' => $estado,
+            'updated_at' => now(),
+        ]);
+
+        ServicioBitacora::registrar(
+            'CU09_GestionarHorariosAtencion',
+            'ACTUALIZAR_HORARIO_ATENCION',
+            'horarios_atencion',
+            (string)$id,
+            (array)$horario,
+            $datos
+        );
+    }
+
+    /**
+     * Alternar estado lógico (RN11 y RN21).
+     * Advierte si existen citas futuras agendadas al inactivar el horario.
+     */
+    public function alternarEstado(int $id): array
     {
         $horario = DB::table('horarios_atencion')->where('id_horario', $id)->first();
         if (!$horario) {
@@ -67,12 +153,59 @@ class GestionarHorariosAtencionServicio
         }
 
         $nuevoEstado = $horario->estado === 'activo' ? 'inactivo' : 'activo';
+        $alerta = null;
+        $citasAfectadas = 0;
+
+        if ($nuevoEstado === 'activo') {
+            $this->validarSolapamiento(
+                $horario->id_medico,
+                $horario->dia_semana,
+                $horario->hora_inicio,
+                $horario->hora_fin,
+                $id
+            );
+        } else {
+            // Inactivación con citas futuras (RN11)
+            $hoy = date('Y-m-d');
+            $citasAfectadas = DB::table('citas')
+                ->join('estados_cita', 'estados_cita.id_estado_cita', '=', 'citas.id_estado_cita')
+                ->where('citas.id_medico', $horario->id_medico)
+                ->where('citas.id_especialidad', $horario->id_especialidad)
+                ->where('citas.fecha_cita', '>=', $hoy)
+                ->whereRaw('EXTRACT(ISODOW FROM citas.fecha_cita) = ?', [$horario->dia_semana])
+                ->where('citas.hora_inicio', '>=', $horario->hora_inicio)
+                ->where('citas.hora_inicio', '<', $horario->hora_fin)
+                ->whereIn('estados_cita.codigo', ['programada', 'confirmada', 'pendiente', 'en_espera'])
+                ->where('citas.estado', 'activo')
+                ->count();
+
+            if ($citasAfectadas > 0) {
+                $alerta = "El horario se inactivó pero tiene {$citasAfectadas} cita(s) futura(s) asociada(s). Se recomienda gestionar suspensiones (CU-11) para reubicar a los pacientes.";
+            }
+        }
 
         DB::table('horarios_atencion')->where('id_horario', $id)->update([
             'estado' => $nuevoEstado,
             'updated_at' => now(),
         ]);
 
-        return $nuevoEstado;
+        ServicioBitacora::registrar(
+            'CU09_GestionarHorariosAtencion',
+            'CAMBIAR_ESTADO_HORARIO_ATENCION',
+            'horarios_atencion',
+            (string)$id,
+            ['estado' => $horario->estado],
+            [
+                'estado' => $nuevoEstado,
+                'citas_afectadas' => $citasAfectadas,
+                'alerta' => $alerta,
+            ]
+        );
+
+        return [
+            'estado' => $nuevoEstado,
+            'alerta' => $alerta,
+            'citas_afectadas' => $citasAfectadas,
+        ];
     }
 }

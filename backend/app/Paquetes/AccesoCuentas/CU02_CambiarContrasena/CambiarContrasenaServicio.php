@@ -16,6 +16,10 @@ class CambiarContrasenaServicio
             throw new \Exception('La contraseña actual ingresada es incorrecta.', 422);
         }
 
+        if (Hash::check($contrasenaNueva, $usuario->contrasena_hash)) {
+            throw new \Exception('La nueva contraseña no puede ser idéntica a la contraseña actual.', 422);
+        }
+
         DB::table('usuarios')->where('id_usuario', $idUsuario)->update([
             'contrasena_hash' => Hash::make($contrasenaNueva),
             'debe_cambiar_contrasena' => false,
@@ -24,7 +28,7 @@ class CambiarContrasenaServicio
 
         ServicioBitacora::registrar(
             'CU02_CambiarContrasena',
-            'CAMBIAR_CONTRASENA',
+            'CAMBIO_CONTRASENA',
             'usuarios',
             (string)$idUsuario,
             ['debe_cambiar_contrasena' => $usuario->debe_cambiar_contrasena],

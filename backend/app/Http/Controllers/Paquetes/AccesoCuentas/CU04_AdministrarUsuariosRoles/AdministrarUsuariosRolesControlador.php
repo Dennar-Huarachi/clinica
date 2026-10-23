@@ -28,7 +28,50 @@ class AdministrarUsuariosRolesControlador extends Controller
 
     public function roles(): JsonResponse
     {
-        return RespuestaApi::exito($this->servicio->obtenerRoles());
+        return RespuestaApi::exito($this->servicio->obtenerRolesConConteo());
+    }
+
+    public function crearRol(Request $request): JsonResponse
+    {
+        $validados = $request->validate([
+            'nombre' => 'required|string|max:50',
+            'descripcion' => 'nullable|string|max:150',
+        ]);
+
+        try {
+            $id = $this->servicio->crearRol($validados);
+            return RespuestaApi::exito(['id_rol' => $id], 'Rol creado satisfactoriamente', 201);
+        } catch (\Exception $e) {
+            $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
+            return RespuestaApi::error($e->getMessage(), $codigo);
+        }
+    }
+
+    public function permisosRol(int $id): JsonResponse
+    {
+        try {
+            $datos = $this->servicio->obtenerPermisosRol($id);
+            return RespuestaApi::exito($datos);
+        } catch (\Exception $e) {
+            $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
+            return RespuestaApi::error($e->getMessage(), $codigo);
+        }
+    }
+
+    public function sincronizarPermisosRol(Request $request, int $id): JsonResponse
+    {
+        $permisosIds = $request->input('permisos', []);
+        if (!is_array($permisosIds)) {
+            return RespuestaApi::error('El formato de permisos debe ser una lista de identificadores.', 422);
+        }
+
+        try {
+            $this->servicio->sincronizarPermisosRol($id, $permisosIds);
+            return RespuestaApi::exito(null, 'Permisos del rol sincronizados correctamente');
+        } catch (\Exception $e) {
+            $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
+            return RespuestaApi::error($e->getMessage(), $codigo);
+        }
     }
 
     public function store(GuardarUsuarioRequest $request): JsonResponse
