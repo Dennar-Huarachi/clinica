@@ -16,14 +16,23 @@ class RegistrarAsistenciaControlador extends Controller
         protected RegistrarAsistenciaServicio $servicio
     ) {}
 
-    public function registrar(RegistrarAsistenciaRequest $request): JsonResponse
+    public function registrar(RegistrarAsistenciaRequest $request, ?int $id = null): JsonResponse
     {
         try {
             $usuario = $request->attributes->get('usuario_autenticado');
-            $this->servicio->registrar($request->validated(), $usuario?->id_usuario);
-            return RespuestaApi::exito(null, 'Estado de asistencia registrado satisfactoriamente');
+            $datos = $request->validated();
+            
+            $idCita = $id ?? ($datos['id_cita'] ?? null);
+            if (!$idCita) {
+                return RespuestaApi::error('Identificador de cita no proporcionado.', 422);
+            }
+            $datos['id_cita'] = (int)$idCita;
+
+            $resultado = $this->servicio->registrar($datos, $usuario);
+            return RespuestaApi::exito($resultado, 'Estado de cita actualizado satisfactoriamente');
         } catch (\Exception $e) {
-            return RespuestaApi::error('Error al registrar asistencia: ' . $e->getMessage(), 400);
+            $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
+            return RespuestaApi::error($e->getMessage(), $codigo);
         }
     }
 }

@@ -27,6 +27,7 @@ use App\Http\Controllers\Paquetes\CitasNotificaciones\CU13_RegistrarAsistenciaIn
 use App\Http\Controllers\Paquetes\CitasNotificaciones\CU14_ConsultarAgendaCitas\ConsultarAgendaCitasControlador;
 use App\Http\Controllers\Paquetes\CitasNotificaciones\CU15_ConsultarHistorialSeguimientoCitas\HistorialSeguimientoCitasControlador;
 use App\Http\Controllers\Paquetes\CitasNotificaciones\CU16_EnviarNotificacionesRecordatorios\EnviarNotificacionesControlador;
+use App\Http\Controllers\Paquetes\CitasNotificaciones\CU27_GestionarPagosReembolsos\GestionarPagosReembolsosControlador;
 
 // Paquete 5: Historia Clínica
 use App\Http\Controllers\Paquetes\HistoriaClinica\CU17_ConsultarMisPacientes\ConsultarMisPacientesControlador;
@@ -63,14 +64,13 @@ Route::get('/salud', function () {
     }
 });
 
-// CU01 & CU03
-Route::post('/acceso/login', [IniciarCerrarSesionControlador::class, 'login']);
-Route::post('/acceso/registro-paciente', [RegistrarsePacienteControlador::class, 'registrar']);
+// CU01 & CU03 (Mitigación de fuerza bruta con rate limiting)
+Route::post('/acceso/login', [IniciarCerrarSesionControlador::class, 'login'])->middleware('throttle:5,1');
+Route::post('/acceso/registro-paciente', [RegistrarsePacienteControlador::class, 'registrar'])->middleware('throttle:10,1');
 
 // Catálogos públicos de especialidades y médicos para reserva
 Route::get('/catalogos/especialidades-publicas', [GestionarEspecialidadesControlador::class, 'index']);
 Route::get('/catalogos/medicos-publicos', [GestionarMedicosControlador::class, 'index']);
-Route::get('/catalogos/disponibilidad', [ConsultarDisponibilidadControlador::class, 'consultar']);
 
 
 /*
@@ -85,19 +85,28 @@ Route::middleware(['sesion.clinica'])->group(function () {
     Route::post('/acceso/logout', [IniciarCerrarSesionControlador::class, 'logout']);
     Route::post('/acceso/cambiar-contrasena', [CambiarContrasenaControlador::class, 'cambiar']);
 
+    // --- PAQUETE 3: Catálogos y Horarios (CU10 - Decisión D9) ---
+    Route::get('/catalogos/disponibilidad', [ConsultarDisponibilidadControlador::class, 'consultar']);
+
     // --- PAQUETE 2: PacientesPerfil ---
     Route::get('/perfil/mi-perfil', [GestionarMiPerfilControlador::class, 'show']);
     Route::put('/perfil/mi-perfil', [GestionarMiPerfilControlador::class, 'update']);
     Route::get('/perfil', [GestionarMiPerfilControlador::class, 'show']);
     Route::put('/perfil', [GestionarMiPerfilControlador::class, 'update']);
 
-    // --- PAQUETE 4: CitasNotificaciones ---
+    // --- PAQUETE 4: CitasNotificaciones (Transaccionales protegidas con throttle:60,1) ---
     Route::get('/citas', [GestionarCitasControlador::class, 'index']);
-    Route::post('/citas', [GestionarCitasControlador::class, 'store']);
-    Route::put('/citas/{id}/reprogramar', [GestionarCitasControlador::class, 'reprogramar']);
-    Route::put('/citas/{id}/cancelar', [GestionarCitasControlador::class, 'cancelar']);
+    Route::post('/citas', [GestionarCitasControlador::class, 'store'])->middleware('throttle:60,1');
+    Route::put('/citas/{id}/reprogramar', [GestionarCitasControlador::class, 'reprogramar'])->middleware('throttle:60,1');
+    Route::put('/citas/{id}/cancelar', [GestionarCitasControlador::class, 'cancelar'])->middleware('throttle:60,1');
+    Route::put('/citas/{id}/confirmar', [GestionarCitasControlador::class, 'confirmar'])->middleware('throttle:60,1');
     Route::get('/citas/agenda', [ConsultarAgendaCitasControlador::class, 'index']);
     Route::get('/citas/historial', [HistorialSeguimientoCitasControlador::class, 'index']);
+
+    // CU27: Gestionar Pagos y Reembolsos de Garantía (Transaccionales protegidas con throttle:60,1)
+    Route::post('/pagos/garantia', [GestionarPagosReembolsosControlador::class, 'procesarPago'])->middleware('throttle:60,1');
+    Route::post('/pagos/{id_cita}/reembolso', [GestionarPagosReembolsosControlador::class, 'procesarReembolso'])->middleware('throttle:60,1');
+    Route::get('/pagos/cita/{id_cita}', [GestionarPagosReembolsosControlador::class, 'consultarPorCita']);
 
     Route::get('/notificaciones', [EnviarNotificacionesControlador::class, 'index']);
     Route::put('/notificaciones/{id}/leida', [EnviarNotificacionesControlador::class, 'marcarLeida']);
@@ -105,15 +114,14 @@ Route::middleware(['sesion.clinica'])->group(function () {
     // Historia clínica para el propio paciente
     Route::get('/historia-clinica/pacientes/{idPaciente}', [ConsultarHistorialClinicoControlador::class, 'show']);
 
+    Route::put('/citas/{id}/asistencia', [RegistrarAsistenciaControlador::class, 'registrar'])->middleware('rol:administrador,recepcionista,medico');
+
     /*
     |----------------------------------------------------------------------
     | Rutas de Recepción y Personal de Admisión (Admin + Recepcionista)
     |----------------------------------------------------------------------
     */
     Route::middleware(['rol:administrador,recepcionista'])->group(function () {
-        // CU13
-        Route::put('/citas/{id}/asistencia', [RegistrarAsistenciaControlador::class, 'registrar']);
-
         // CU05
         Route::get('/pacientes', [GestionarPacientesControlador::class, 'index']);
         Route::get('/pacientes/{id}', [GestionarPacientesControlador::class, 'show']);

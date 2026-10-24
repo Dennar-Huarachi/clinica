@@ -9,14 +9,29 @@ class ConsultarDisponibilidadServicio
 {
     /**
      * Consulta y calcula los turnos disponibles para un médico en una fecha y especialidad.
+     * Aplica RN06 (Fecha no pasada), RN18 (Canal reserva web), RN20 (Bloqueos) y cruce preciso con estados_cita.
      */
-    public function consultar(int $idMedico, int $idEspecialidad, string $fecha): array
+    public function consultar(int $idMedico, int $idEspecialidad, string $fecha, ?string $rolUsuario = null): array
     {
+        // 1. Validación de fecha futura o presente
+        $hoy = date('Y-m-d');
+        if ($fecha < $hoy) {
+            throw new \Exception('No se puede consultar disponibilidad en fechas pasadas.', 422);
+        }
+
+        // 2. Canal de reserva web
+        if ($rolUsuario === 'paciente') {
+            $especialidad = DB::table('especialidades')->where('id_especialidad', $idEspecialidad)->first();
+            if ($especialidad && isset($especialidad->reservable_en_linea) && $especialidad->reservable_en_linea === false) {
+                throw new \Exception('Esta especialidad solo puede ser agendada presencialmente en ventanilla o recepción.', 403);
+            }
+        }
+
         $carbonFecha = Carbon::parse($fecha);
         // Carbon isoFormat('E') returns 1 for Monday to 7 for Sunday
         $diaSemana = (int)$carbonFecha->dayOfWeekIso;
 
-        // 1. Verificar bloqueos de clínica en esa fecha
+        // 3. Regla RN20: Verificar bloqueos de clínica en esa fecha
         $bloqueoClinica = DB::table('bloqueos_clinica')
             ->where('estado', 'activo')
             ->where(function ($q) use ($idMedico) {
@@ -35,7 +50,7 @@ class ConsultarDisponibilidadServicio
             ];
         }
 
-        // 2. Verificar suspensiones del médico
+        // 4. Verificar suspensiones del médico
         $suspension = DB::table('suspensiones_horario')
             ->where('id_medico', $idMedico)
             ->where('fecha_inicio', '<=', $carbonFecha->endOfDay())
@@ -50,7 +65,7 @@ class ConsultarDisponibilidadServicio
             ];
         }
 
-        // 3. Obtener horarios de atención configurados para ese día de la semana
+        // 5. Obtener horarios de atención configurados para ese día de la semana
         $horarios = DB::table('horarios_atencion')
             ->where('id_medico', $idMedico)
             ->where('id_especialidad', $idEspecialidad)
@@ -66,12 +81,15 @@ class ConsultarDisponibilidadServicio
             ];
         }
 
-        // 4. Obtener citas ya agendadas (no canceladas)
+        // 6. Cruce Preciso con Estados de Cita (estados_cita)
+        // Se seleccionan citas que ocupan turno (excluyendo canceladas para liberar cupos de inmediato)
         $citasAgendadas = DB::table('citas')
-            ->where('id_medico', $idMedico)
-            ->where('fecha_cita', $fecha)
-            ->where('estado', '!=', 'cancelada')
-            ->select('hora_inicio', 'hora_fin', 'codigo_cita', 'es_postergada')
+            ->join('estados_cita', 'citas.id_estado_cita', '=', 'estados_cita.id_estado_cita')
+            ->where('citas.id_medico', $idMedico)
+            ->where('citas.fecha_cita', $fecha)
+            ->where('citas.estado', '!=', 'cancelada')
+            ->whereRaw("LOWER(estados_cita.nombre) NOT IN ('cancelada', 'cancelado')")
+            ->select('citas.hora_inicio', 'citas.hora_fin', 'citas.codigo_cita', 'citas.es_postergada', 'estados_cita.nombre as estado_nombre')
             ->get()
             ->keyBy(fn ($item) => substr($item->hora_inicio, 0, 5));
 

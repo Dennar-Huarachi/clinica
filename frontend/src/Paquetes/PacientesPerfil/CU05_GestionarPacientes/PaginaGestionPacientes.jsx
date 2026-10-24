@@ -29,6 +29,9 @@ export default function PaginaGestionPacientes() {
     grupo_sanguineo: 'O+',
     alergias: '',
     enfermedades_cronicas: '',
+    contacto_emergencia_nombre: '',
+    contacto_emergencia_telefono: '',
+    contacto_emergencia_parentesco: '',
   });
   const [errores, setErrores] = useState({});
 
@@ -58,6 +61,9 @@ export default function PaginaGestionPacientes() {
       grupo_sanguineo: 'O+',
       alergias: '',
       enfermedades_cronicas: '',
+      contacto_emergencia_nombre: '',
+      contacto_emergencia_telefono: '',
+      contacto_emergencia_parentesco: '',
     });
     setErrores({});
     setModalAbierto(true);
@@ -80,6 +86,9 @@ export default function PaginaGestionPacientes() {
         grupo_sanguineo: p.grupo_sanguineo || 'O+',
         alergias: p.alergias || '',
         enfermedades_cronicas: p.enfermedades_cronicas || '',
+        contacto_emergencia_nombre: p.contacto_emergencia_nombre || p.contacto_nombre || '',
+        contacto_emergencia_telefono: p.contacto_emergencia_telefono || p.contacto_telefono || '',
+        contacto_emergencia_parentesco: p.contacto_emergencia_parentesco || p.contacto_relacion || '',
       });
       setErrores({});
       setModalAbierto(true);
@@ -293,8 +302,8 @@ export default function PaginaGestionPacientes() {
                   <div className="detalle-dato-item">
                     <span className="detalle-etiqueta">Contacto de Emergencia</span>
                     <span className="detalle-valor">
-                      {p.contacto_nombre ? (
-                        `${p.contacto_nombre} (${p.contacto_relacion || 'Contacto'}) · Tel: ${p.contacto_telefono || '—'}`
+                      {(p.contacto_emergencia_nombre || p.contacto_nombre) ? (
+                        `${p.contacto_emergencia_nombre || p.contacto_nombre} (${p.contacto_emergencia_parentesco || p.contacto_relacion || 'Contacto'}) · Tel: ${p.contacto_emergencia_telefono || p.contacto_telefono || '—'}`
                       ) : (
                         'No asignado'
                       )}
@@ -560,6 +569,44 @@ export default function PaginaGestionPacientes() {
                   alCambiar={(e) => setFormulario({ ...formulario, enfermedades_cronicas: e.target.value })}
                   marcador="Ej: Hipertensión arterial, diabetes tipo 2"
                   filas={2}
+                />
+
+                {/* Subtítulo y campos: Contacto de Emergencia */}
+                <div style={{ marginTop: '1.25rem', marginBottom: '0.75rem', borderTop: '1px solid #E2ECEF', paddingTop: '1rem' }}>
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#0A6C84', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Contacto de Emergencia
+                  </h4>
+                  <p style={{ margin: '0.2rem 0 0.75rem 0', fontSize: '0.82rem', color: 'var(--texto-sec)' }}>
+                    Persona designada para notificación inmediata en caso de urgencia médica.
+                  </p>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0 1rem' }}>
+                  <CampoTexto
+                    etiqueta="Nombre Completo Contacto"
+                    nombre="contacto_emergencia_nombre"
+                    valor={formulario.contacto_emergencia_nombre}
+                    alCambiar={(e) => setFormulario({ ...formulario, contacto_emergencia_nombre: e.target.value })}
+                    error={errores.contacto_emergencia_nombre?.[0] || errores.contacto_emergencia_nombre}
+                    marcador="Ej: María Pérez"
+                  />
+                  <CampoTexto
+                    etiqueta="Parentesco / Relación"
+                    nombre="contacto_emergencia_parentesco"
+                    valor={formulario.contacto_emergencia_parentesco}
+                    alCambiar={(e) => setFormulario({ ...formulario, contacto_emergencia_parentesco: e.target.value })}
+                    error={errores.contacto_emergencia_parentesco?.[0] || errores.contacto_emergencia_parentesco}
+                    marcador="Ej: Madre, Cónyuge, Hermano"
+                  />
+                </div>
+
+                <CampoTexto
+                  etiqueta="Teléfono del Contacto"
+                  nombre="contacto_emergencia_telefono"
+                  valor={formulario.contacto_emergencia_telefono}
+                  alCambiar={(e) => setFormulario({ ...formulario, contacto_emergencia_telefono: e.target.value })}
+                  error={errores.contacto_emergencia_telefono?.[0] || errores.contacto_emergencia_telefono}
+                  marcador="Ej: 71234567"
                 />
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>

@@ -25,7 +25,10 @@ class ConsultarAgendaCitasControlador extends Controller
             $idMedico = $usuario->id_medico;
         }
 
-        $agenda = $this->servicio->obtenerAgenda($idMedico, $request->query('fecha'));
+        $idEspecialidad = $request->query('id_especialidad') ? (int)$request->query('id_especialidad') : null;
+        $estado = $request->query('estado') ? trim($request->query('estado')) : null;
+
+        $agenda = $this->servicio->obtenerAgenda($idMedico, $request->query('fecha'), $idEspecialidad, $estado);
         return RespuestaApi::exito($agenda);
     }
 }

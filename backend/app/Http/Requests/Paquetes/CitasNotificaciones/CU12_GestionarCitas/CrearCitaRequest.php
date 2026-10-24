@@ -16,6 +16,9 @@ class CrearCitaRequest extends FormRequestPersonalizado
             'hora_inicio' => 'required|date_format:H:i',
             'motivo_consulta' => 'nullable|string|max:255',
             'observaciones' => 'nullable|string',
+            'metodo_pago' => 'nullable|string|in:qr_transferencia,tarjeta_debito_credito,qr,tarjeta',
+            'referencia_simulada' => 'nullable|string|max:100',
+            'detalles_pasarela' => 'nullable|array',
         ];
     }
 }

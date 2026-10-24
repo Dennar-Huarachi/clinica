@@ -4,7 +4,7 @@ import Alerta from '../../../compartido/componentes/Alerta';
 import ChecklistContrasena, { esContrasenaSegura } from '../../../comun/componentes/ChecklistContrasena';
 
 /**
- * ModalCambiarContrasena (CU-02)
+ * ModalCambiarContrasena (CU-02 — Cambiar y recuperar contraseña)
  * Modal accesible de cambio de contraseña para todos los usuarios autenticados.
  * Valida que la nueva contraseña cumpla los 5 requisitos de seguridad
  * y que no sea idéntica a la actual.

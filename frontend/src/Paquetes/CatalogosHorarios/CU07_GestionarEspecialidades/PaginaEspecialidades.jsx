@@ -114,7 +114,7 @@ export default function PaginaEspecialidades() {
               <b>Catálogo</b> <span>de Especialidades Médicas</span>
             </h2>
             <p style={{ color: 'var(--texto-sec)', fontSize: '0.9rem' }}>
-              Gestión de ramas médicas, duración estándar de consulta y disponibilidad para reserva en línea (RN18).
+              Gestión de ramas médicas, duración estándar de consulta y disponibilidad para reserva en línea.
             </p>
           </div>
 
@@ -294,7 +294,7 @@ export default function PaginaEspecialidades() {
                 </div>
 
                 <div className="detalle-dato-item">
-                  <span className="detalle-etiqueta">Canal de Reserva Habilitado (RN18)</span>
+                  <span className="detalle-etiqueta">Canal de Reserva Habilitado</span>
                   <span className="detalle-valor">
                     {esp.reservable_en_linea !== false
                       ? '✓ Habilitada para reserva en línea de pacientes y ventanilla de recepción'
@@ -412,7 +412,7 @@ export default function PaginaEspecialidades() {
                       Reserva en Línea (Portal de Pacientes)
                     </strong>
                     <span style={{ fontSize: '12px', color: '#5A7184' }}>
-                      Permite que los pacientes agenden citas en esta especialidad desde la web institucional (RN18).
+                      Permite que los pacientes agenden citas en esta especialidad desde la web institucional.
                     </span>
                   </div>
 

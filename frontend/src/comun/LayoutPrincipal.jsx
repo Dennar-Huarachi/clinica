@@ -28,6 +28,24 @@ export default function LayoutPrincipal({ children, titulo }) {
     };
   }, [drawerAbierto]);
 
+  const [alertaSeguridad, setAlertaSeguridad] = useState(null);
+
+  // Detectar y consumir alertas de seguridad emitidas por RutaProtegidaPorRol
+  useEffect(() => {
+    const alertaRaw = sessionStorage.getItem('alerta_seguridad_clinica');
+    if (alertaRaw) {
+      try {
+        const parsed = JSON.parse(alertaRaw);
+        if (Date.now() - parsed.timestamp < 10000) {
+          setAlertaSeguridad(parsed.mensaje);
+        }
+      } catch (e) {
+        setAlertaSeguridad(alertaRaw);
+      }
+      sessionStorage.removeItem('alerta_seguridad_clinica');
+    }
+  }, [location.pathname]);
+
   return (
     <div className="layout-panel-contenedor">
       {/* 1. Backdrop / Fondo oscurecido para drawer en móvil y tablet */}
@@ -50,6 +68,23 @@ export default function LayoutPrincipal({ children, titulo }) {
           onToggleDrawer={() => setDrawerAbierto(!drawerAbierto)}
           tituloPersonalizado={titulo}
         />
+
+        {alertaSeguridad && (
+          <div className="layout-alerta-seguridad" role="alert">
+            <div className="layout-alerta-seguridad-contenido">
+              <span className="layout-alerta-icono" aria-hidden="true">🛡️</span>
+              <span className="layout-alerta-texto">{alertaSeguridad}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAlertaSeguridad(null)}
+              className="layout-alerta-cerrar"
+              aria-label="Cerrar notificación"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         <main className="layout-main-contenido">
           {children}
@@ -86,6 +121,54 @@ export default function LayoutPrincipal({ children, titulo }) {
           display: flex;
           flex-direction: column;
           background-color: var(--fondo, #F4FAFB);
+        }
+
+        /* Alerta sutil de seguridad */
+        .layout-alerta-seguridad {
+          margin: 12px 24px 0 24px;
+          padding: 10px 16px;
+          background-color: #FEF3C7;
+          border-left: 4px solid #D97706;
+          border-radius: 6px;
+          color: #92400E;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          font-size: 13px;
+          font-weight: 500;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+          animation: slideDownAlerta 0.3s ease-out;
+        }
+
+        .layout-alerta-seguridad-contenido {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .layout-alerta-icono {
+          font-size: 16px;
+        }
+
+        .layout-alerta-cerrar {
+          background: transparent;
+          border: none;
+          color: #92400E;
+          font-size: 16px;
+          cursor: pointer;
+          padding: 0 4px;
+          line-height: 1;
+        }
+
+        @keyframes slideDownAlerta {
+          from {
+            opacity: 0;
+            transform: translateY(-8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
 
         .layout-main-contenido {

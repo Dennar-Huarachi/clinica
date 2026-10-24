@@ -75,8 +75,12 @@ export default function PaginaHorarios() {
         await api.put(`/catalogos/horarios/${horarioEditando.id_horario}`, payload);
         setAlerta({ tipo: 'exito', mensaje: 'Horario de atención actualizado exitosamente.' });
       } else {
-        await api.post('/catalogos/horarios', payload);
-        setAlerta({ tipo: 'exito', mensaje: 'Nuevo horario de atención registrado exitosamente.' });
+        const res = await api.post('/catalogos/horarios', payload);
+        const total = res.data?.datos?.total_creados;
+        const msj = total && total > 1
+          ? `¡Se registraron exitosamente ${total} franjas de horario para los días seleccionados!`
+          : (res.data?.mensaje || 'Nuevo horario de atención registrado exitosamente.');
+        setAlerta({ tipo: 'exito', mensaje: msj });
       }
       setModalAbierto(false);
       cargarDatos();
@@ -138,7 +142,7 @@ export default function PaginaHorarios() {
               <b>Horarios</b> <span>de Atención</span>
             </h2>
             <p style={{ color: 'var(--texto-sec)', fontSize: '0.9rem', margin: '4px 0 0 0' }}>
-              Programación semanal de jornadas de consulta, franjas horarias e intervalos por especialista (RF05).
+              Programación semanal de jornadas de consulta, franjas horarias e intervalos por especialista.
             </p>
           </div>
 
@@ -184,7 +188,7 @@ export default function PaginaHorarios() {
         {/* Mensaje de alerta general */}
         <Alerta tipo={alerta?.tipo} mensaje={alerta?.mensaje} />
 
-        {/* Banner de Advertencia Informativa al Desactivar Franja con Citas (RN11) */}
+        {/* Banner de Advertencia Informativa al Desactivar Franja con Citas */}
         {advertenciaCitas && (
           <div className="banner-advertencia-horario" role="alert">
             <div className="banner-advertencia-contenido">
@@ -197,7 +201,7 @@ export default function PaginaHorarios() {
               </div>
               <div className="banner-advertencia-textos">
                 <strong style={{ display: 'block', fontSize: '0.95rem', color: '#92400E', marginBottom: '4px' }}>
-                  Atención: Franja Inactivada con Citas Futuras Asociadas (RN11)
+                  Atención: Franja Inactivada con Citas Futuras Asociadas
                 </strong>
                 <p style={{ margin: 0, fontSize: '0.875rem', color: '#78350F', lineHeight: 1.45 }}>
                   {advertenciaCitas.mensaje}
@@ -211,7 +215,7 @@ export default function PaginaHorarios() {
                 className="boton-primario"
                 style={{ minHeight: '44px', textDecoration: 'none', background: '#0A6C84' }}
               >
-                Ir a Suspender Horarios (CU-11) →
+                Gestionar Suspensión de Horarios →
               </Link>
               <button
                 type="button"

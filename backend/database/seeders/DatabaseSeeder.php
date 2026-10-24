@@ -39,9 +39,17 @@ class DatabaseSeeder extends Seeder
         $parametros = [
             [
                 'clave' => 'HORAS_ANTICIPACION_CANCELAR',
-                'valor' => '2',
-                'descripcion' => 'Horas mínimas de anticipación requeridas para que un paciente cancele su turno',
+                'valor' => '12',
+                'descripcion' => 'Horas mínimas de anticipación requeridas para que un paciente cancele su turno con derecho a reembolso (RN15)',
                 'tipo_dato' => 'integer',
+                'created_at' => now(),
+                'updated_at' => now()
+            ],
+            [
+                'clave' => 'MONTO_FIJO_RESERVA_CITA',
+                'valor' => '50.00',
+                'descripcion' => 'Monto fijo de garantía de reserva de cita médica en Bolivianos (D17, RN15)',
+                'tipo_dato' => 'decimal',
                 'created_at' => now(),
                 'updated_at' => now()
             ],

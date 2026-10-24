@@ -35,70 +35,97 @@ class GestionarHorariosAtencionServicio
     }
 
     /**
-     * Prevención de Solapamientos (RN05 / RN07).
-     * Valida que no exista colisión temporal para el mismo médico en el mismo día.
+     * Prevención de Solapamientos Global por Médico (RN05 / RN07).
+     * Valida que no exista colisión temporal para el médico en el mismo día,
+     * SIN importar la especialidad (un médico no puede estar en dos lugares/especialidades a la vez).
      */
     protected function validarSolapamiento(int $idMedico, int $diaSemana, string $horaInicio, string $horaFin, ?int $idHorarioExcluir = null): void
     {
         $query = DB::table('horarios_atencion')
-            ->where('id_medico', $idMedico)
-            ->where('dia_semana', $diaSemana)
-            ->where('estado', 'activo')
+            ->join('especialidades', 'horarios_atencion.id_especialidad', '=', 'especialidades.id_especialidad')
+            ->where('horarios_atencion.id_medico', $idMedico)
+            ->where('horarios_atencion.dia_semana', $diaSemana)
+            ->where('horarios_atencion.estado', 'activo')
             ->where(function ($q) use ($horaInicio, $horaFin) {
-                $q->where('hora_inicio', '<', $horaFin)
-                  ->where('hora_fin', '>', $horaInicio);
-            });
+                $q->where('horarios_atencion.hora_inicio', '<', $horaFin)
+                  ->where('horarios_atencion.hora_fin', '>', $horaInicio);
+            })
+            ->select('horarios_atencion.*', 'especialidades.nombre as especialidad_nombre');
 
         if ($idHorarioExcluir) {
-            $query->where('id_horario', '!=', $idHorarioExcluir);
+            $query->where('horarios_atencion.id_horario', '!=', $idHorarioExcluir);
         }
 
         $colision = $query->first();
         if ($colision) {
             $inicioCol = substr($colision->hora_inicio, 0, 5);
             $finCol = substr($colision->hora_fin, 0, 5);
+            $espCol = $colision->especialidad_nombre ?? 'Especialidad';
+            $diasNombre = [1 => 'Lunes', 2 => 'Martes', 3 => 'Miércoles', 4 => 'Jueves', 5 => 'Viernes', 6 => 'Sábado', 7 => 'Domingo'];
+            $diaTexto = $diasNombre[$diaSemana] ?? "día {$diaSemana}";
             throw new \Exception(
-                "El médico ya tiene un bloque horario configurado este día ({$inicioCol} - {$finCol}) que colisiona con el rango solicitado (RN05/RN07).",
+                "El médico ya tiene un bloque horario configurado el {$diaTexto} ({$inicioCol} - {$finCol}) en {$espCol} que colisiona con el rango solicitado.",
                 422
             );
         }
     }
 
-    public function crear(array $datos): int
+    /**
+     * Registro individual o en bloque multi-día (RN05).
+     */
+    public function crear(array $datos): int|array
     {
-        $estado = $datos['estado'] ?? 'activo';
-
-        if ($estado === 'activo') {
-            $this->validarSolapamiento(
-                $datos['id_medico'],
-                $datos['dia_semana'],
-                $datos['hora_inicio'],
-                $datos['hora_fin']
-            );
+        $dias = [];
+        if (!empty($datos['dias_semana']) && is_array($datos['dias_semana'])) {
+            $dias = array_values(array_unique(array_map('intval', $datos['dias_semana'])));
+        } elseif (!empty($datos['dia_semana'])) {
+            $dias = [(int)$datos['dia_semana']];
         }
 
-        $id = DB::table('horarios_atencion')->insertGetId([
-            'id_medico' => $datos['id_medico'],
-            'id_especialidad' => $datos['id_especialidad'],
-            'dia_semana' => $datos['dia_semana'],
-            'hora_inicio' => $datos['hora_inicio'],
-            'hora_fin' => $datos['hora_fin'],
-            'duracion_intervalo_minutos' => $datos['duracion_intervalo_minutos'] ?? 15,
-            'estado' => $estado,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ], 'id_horario');
+        if (empty($dias)) {
+            throw new \Exception('Debe seleccionar al menos un día de atención semanal', 422);
+        }
 
-        ServicioBitacora::registrar(
-            'CU09_GestionarHorariosAtencion',
-            'CREAR_HORARIO_ATENCION',
-            'horarios_atencion',
-            (string)$id,
-            null,
-            $datos
-        );
+        $estado = $datos['estado'] ?? 'activo';
 
-        return $id;
+        return DB::transaction(function () use ($datos, $dias, $estado) {
+            $ids = [];
+            foreach ($dias as $dia) {
+                if ($estado === 'activo') {
+                    $this->validarSolapamiento(
+                        $datos['id_medico'],
+                        $dia,
+                        $datos['hora_inicio'],
+                        $datos['hora_fin']
+                    );
+                }
+
+                $id = DB::table('horarios_atencion')->insertGetId([
+                    'id_medico' => $datos['id_medico'],
+                    'id_especialidad' => $datos['id_especialidad'],
+                    'dia_semana' => $dia,
+                    'hora_inicio' => $datos['hora_inicio'],
+                    'hora_fin' => $datos['hora_fin'],
+                    'duracion_intervalo_minutos' => $datos['duracion_intervalo_minutos'] ?? 15,
+                    'estado' => $estado,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ], 'id_horario');
+
+                $ids[] = $id;
+
+                ServicioBitacora::registrar(
+                    'CU09_GestionarHorariosAtencion',
+                    'CREAR_HORARIO_ATENCION',
+                    'horarios_atencion',
+                    (string)$id,
+                    null,
+                    array_merge($datos, ['dia_semana' => $dia])
+                );
+            }
+
+            return count($ids) === 1 ? $ids[0] : $ids;
+        });
     }
 
     public function actualizar(int $id, array $datos): void
@@ -108,12 +135,16 @@ class GestionarHorariosAtencionServicio
             throw new \Exception('Horario no encontrado', 404);
         }
 
+        $dia = !empty($datos['dia_semana']) 
+            ? (int)$datos['dia_semana'] 
+            : (!empty($datos['dias_semana'][0]) ? (int)$datos['dias_semana'][0] : (int)$horario->dia_semana);
+
         $estado = $datos['estado'] ?? $horario->estado;
 
         if ($estado === 'activo') {
             $this->validarSolapamiento(
                 $datos['id_medico'],
-                $datos['dia_semana'],
+                $dia,
                 $datos['hora_inicio'],
                 $datos['hora_fin'],
                 $id
@@ -123,7 +154,7 @@ class GestionarHorariosAtencionServicio
         DB::table('horarios_atencion')->where('id_horario', $id)->update([
             'id_medico' => $datos['id_medico'],
             'id_especialidad' => $datos['id_especialidad'],
-            'dia_semana' => $datos['dia_semana'],
+            'dia_semana' => $dia,
             'hora_inicio' => $datos['hora_inicio'],
             'hora_fin' => $datos['hora_fin'],
             'duracion_intervalo_minutos' => $datos['duracion_intervalo_minutos'] ?? 15,
@@ -137,7 +168,7 @@ class GestionarHorariosAtencionServicio
             'horarios_atencion',
             (string)$id,
             (array)$horario,
-            $datos
+            array_merge($datos, ['dia_semana' => $dia])
         );
     }
 
@@ -180,7 +211,7 @@ class GestionarHorariosAtencionServicio
                 ->count();
 
             if ($citasAfectadas > 0) {
-                $alerta = "El horario se inactivó pero tiene {$citasAfectadas} cita(s) futura(s) asociada(s). Se recomienda gestionar suspensiones (CU-11) para reubicar a los pacientes.";
+                $alerta = "El horario se inactivó pero tiene {$citasAfectadas} cita(s) futura(s) asociada(s). Se recomienda gestionar suspensiones para reubicar a los pacientes afectados.";
             }
         }
 

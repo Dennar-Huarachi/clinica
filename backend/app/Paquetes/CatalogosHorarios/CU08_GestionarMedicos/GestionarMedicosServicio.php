@@ -191,7 +191,7 @@ class GestionarMedicosServicio
 
             if ($especialidadesActivas === 0) {
                 throw new \Exception(
-                    "No se puede activar al médico porque no cuenta con ninguna especialidad médica activa asignada (RN04). Edite su ficha y asigne al menos una especialidad activa.",
+                    "No se puede activar al médico porque no cuenta con ninguna especialidad médica activa asignada. Asigne al menos una especialidad activa antes de habilitarlo.",
                     422
                 );
             }
@@ -213,7 +213,7 @@ class GestionarMedicosServicio
 
             if ($citasFuturas > 0 || $horariosActivos > 0) {
                 $sugerirSuspension = true;
-                $alerta = "El médico ha sido desactivado. Tiene {$citasFuturas} cita(s) futura(s) programada(s) y horarios de atención vigentes. Se recomienda suspender su horario (CU-11) para reubicar a los pacientes afectados.";
+                $alerta = "El médico ha sido desactivado. Tiene {$citasFuturas} cita(s) futura(s) programada(s) y horarios de atención vigentes. Se recomienda suspender su horario para reubicar oportunamente a los pacientes afectados.";
             }
         }
 

@@ -7,6 +7,7 @@ use App\Paquetes\CitasNotificaciones\CU15_ConsultarHistorialSeguimientoCitas\His
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use App\Nucleo\Errores\RespuestaApi;
 
 class HistorialSeguimientoCitasControlador extends Controller
@@ -20,8 +21,16 @@ class HistorialSeguimientoCitasControlador extends Controller
         $usuario = $request->attributes->get('usuario_autenticado');
         $idPaciente = $request->query('id_paciente') ? (int)$request->query('id_paciente') : null;
 
+        // Blindaje IDOR (RN19): Si es rol paciente, forzar incondicionalmente su propio id_paciente
         if (strtolower($usuario?->rol ?? '') === 'paciente') {
-            $idPaciente = $usuario->id_paciente;
+            $idPaciente = (int)($usuario->id_paciente ?? 0);
+            if (!$idPaciente) {
+                $paciente = DB::table('pacientes')->where('id_usuario', $usuario->id_usuario)->first();
+                $idPaciente = (int)($paciente?->id_paciente ?? 0);
+            }
+            if (!$idPaciente) {
+                return RespuestaApi::error('Perfil de paciente no vinculado al usuario en sesión.', 403);
+            }
         }
 
         $historial = $this->servicio->consultarHistorial(

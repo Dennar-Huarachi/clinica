@@ -191,7 +191,7 @@ export default function PaginaMedicos() {
               </div>
               <div className="banner-advertencia-textos">
                 <strong className="banner-advertencia-titulo">
-                  Atención: Médico con Citas u Horarios Vigentes (RN11)
+                  Atención: Médico con Citas u Horarios Vigentes
                 </strong>
                 <p className="banner-advertencia-descripcion">
                   {advertenciaDesactivacion.mensaje}
@@ -205,7 +205,7 @@ export default function PaginaMedicos() {
                 className="boton-primario banner-btn-accion"
                 style={{ minHeight: '44px', textDecoration: 'none' }}
               >
-                Ir a Suspender Horarios (CU-11) →
+                Gestionar Suspensión de Horarios →
               </Link>
               <button
                 type="button"

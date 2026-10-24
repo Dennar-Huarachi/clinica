@@ -11,14 +11,25 @@ export default function IniciarSesion() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Detectar notificación flash de expiración de sesión por inactividad
+  // Detectar notificación flash de expiración de sesión por inactividad o revocación
   useEffect(() => {
-    const flash = sessionStorage.getItem('flash_inactividad') || location.state?.mensajeInactividad;
-    if (flash) {
-      setAlerta({ tipo: 'advertencia', mensaje: flash });
-      sessionStorage.removeItem('flash_inactividad');
+    const params = new URLSearchParams(location.search);
+    const motivo = params.get('motivo');
+    const expirada = params.get('expirada');
+
+    if (motivo === 'sesion_expirada' || expirada === '1') {
+      setAlerta({
+        tipo: 'advertencia',
+        mensaje: 'Su sesión ha finalizado o ha expirado. Por favor, ingrese sus credenciales nuevamente.'
+      });
+    } else {
+      const flash = sessionStorage.getItem('flash_inactividad') || location.state?.mensajeInactividad;
+      if (flash) {
+        setAlerta({ tipo: 'advertencia', mensaje: flash });
+        sessionStorage.removeItem('flash_inactividad');
+      }
     }
-  }, [location.state]);
+  }, [location.search, location.state]);
 
   return (
     <div className="login-viewport-centrado">

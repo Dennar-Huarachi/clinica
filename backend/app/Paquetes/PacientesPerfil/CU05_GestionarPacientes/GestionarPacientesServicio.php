@@ -34,7 +34,10 @@ class GestionarPacientesServicio
                 'informacion_medica_paciente.enfermedades_cronicas',
                 'contactos_emergencia.nombre_completo as contacto_nombre',
                 'contactos_emergencia.relacion as contacto_relacion',
-                'contactos_emergencia.telefono as contacto_telefono'
+                'contactos_emergencia.telefono as contacto_telefono',
+                'contactos_emergencia.nombre_completo as contacto_emergencia_nombre',
+                'contactos_emergencia.relacion as contacto_emergencia_parentesco',
+                'contactos_emergencia.telefono as contacto_emergencia_telefono'
             )
             ->orderBy('pacientes.id_paciente', 'desc');
 
@@ -59,6 +62,10 @@ class GestionarPacientesServicio
         return DB::table('pacientes')
             ->join('personas', 'pacientes.id_persona', '=', 'personas.id_persona')
             ->leftJoin('informacion_medica_paciente', 'pacientes.id_paciente', '=', 'informacion_medica_paciente.id_paciente')
+            ->leftJoin('contactos_emergencia', function ($join) {
+                $join->on('pacientes.id_paciente', '=', 'contactos_emergencia.id_paciente')
+                     ->where('contactos_emergencia.es_principal', true);
+            })
             ->where('pacientes.id_paciente', $idPaciente)
             ->select(
                 'pacientes.*',
@@ -74,7 +81,10 @@ class GestionarPacientesServicio
                 'informacion_medica_paciente.enfermedades_cronicas',
                 'informacion_medica_paciente.medicamentos_actuales',
                 'informacion_medica_paciente.antecedentes_familiares',
-                'informacion_medica_paciente.observaciones as observaciones_medicas'
+                'informacion_medica_paciente.observaciones as observaciones_medicas',
+                'contactos_emergencia.nombre_completo as contacto_emergencia_nombre',
+                'contactos_emergencia.relacion as contacto_emergencia_parentesco',
+                'contactos_emergencia.telefono as contacto_emergencia_telefono'
             )
             ->first();
     }
@@ -116,6 +126,18 @@ class GestionarPacientesServicio
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+
+            if (!empty($datos['contacto_emergencia_nombre']) || !empty($datos['contacto_emergencia_telefono']) || !empty($datos['contacto_emergencia_parentesco'])) {
+                DB::table('contactos_emergencia')->insert([
+                    'id_paciente' => $idPaciente,
+                    'nombre_completo' => $datos['contacto_emergencia_nombre'] ?? 'Contacto de Emergencia',
+                    'relacion' => $datos['contacto_emergencia_parentesco'] ?? 'Familiar',
+                    'telefono' => $datos['contacto_emergencia_telefono'] ?? '',
+                    'es_principal' => true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
 
             ServicioBitacora::registrar(
                 'CU05_GestionarPacientes',
@@ -168,6 +190,21 @@ class GestionarPacientesServicio
                         'updated_at' => now(),
                     ]
                 );
+
+            if (!empty($datos['contacto_emergencia_nombre']) || !empty($datos['contacto_emergencia_telefono']) || !empty($datos['contacto_emergencia_parentesco'])) {
+                DB::table('contactos_emergencia')->updateOrInsert(
+                    [
+                        'id_paciente' => $idPaciente,
+                        'es_principal' => true,
+                    ],
+                    [
+                        'nombre_completo' => $datos['contacto_emergencia_nombre'] ?? '',
+                        'relacion' => $datos['contacto_emergencia_parentesco'] ?? 'Familiar',
+                        'telefono' => $datos['contacto_emergencia_telefono'] ?? '',
+                        'updated_at' => now(),
+                    ]
+                );
+            }
 
             ServicioBitacora::registrar(
                 'CU05_GestionarPacientes',

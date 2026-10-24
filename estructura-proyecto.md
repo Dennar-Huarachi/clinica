@@ -33,7 +33,7 @@ backend/
 │   │   │   └── Paquetes/
 │   │   │       ├── AccesoCuentas/
 │   │   │       │   ├── CU01_IniciarCerrarSesion/IniciarCerrarSesionControlador.php
-│   │   │       │   ├── CU02_CambiarContrasena/CambiarContrasenaControlador.php
+│   │   │       │   ├── CU02_CambiarContrasena/CambiarContrasenaControlador.php # CU-02: Cambiar y recuperar contraseña
 │   │   │       │   ├── CU03_RegistrarsePaciente/RegistrarsePacienteControlador.php
 │   │   │       │   ├── CU04_AdministrarUsuariosRoles/AdministrarUsuariosRolesControlador.php
 │   │   │       │   └── CU26_GenerarRestaurarCopiasSeguridad/GenerarRestaurarCopiasSeguridadControlador.php
@@ -51,7 +51,8 @@ backend/
 │   │   │       │   ├── CU13_RegistrarAsistenciaInasistenciaAtencion/RegistrarAsistenciaControlador.php
 │   │   │       │   ├── CU14_ConsultarAgendaCitas/ConsultarAgendaCitasControlador.php
 │   │   │       │   ├── CU15_ConsultarHistorialSeguimientoCitas/HistorialSeguimientoCitasControlador.php
-│   │   │       │   └── CU16_EnviarNotificacionesRecordatorios/EnviarNotificacionesControlador.php
+│   │   │       │   ├── CU16_EnviarNotificacionesRecordatorios/EnviarNotificacionesControlador.php
+│   │   │       │   └── CU27_GestionarPagosReembolsos/GestionarPagosReembolsosControlador.php
 │   │   │       ├── HistoriaClinica/
 │   │   │       │   ├── CU17_ConsultarMisPacientes/ConsultarMisPacientesControlador.php
 │   │   │       │   ├── CU18_RegistrarAtencionClinica/RegistrarAtencionClinicaControlador.php
@@ -63,6 +64,8 @@ backend/
 │   │   │           ├── CU23_ExportarReportes/ExportarReportesControlador.php
 │   │   │           ├── CU24_ConsultarBitacoraAuditoria/ConsultarBitacoraControlador.php
 │   │   │           └── CU25_VisualizarDashboardAdministrativo/DashboardAdministrativoControlador.php
+│   │   ├── Middleware/
+│   │   │   └── CabecerasSeguridad.php
 │   │   └── Requests/
 │   │       └── Paquetes/
 │   │           ├── AccesoCuentas/
@@ -81,7 +84,8 @@ backend/
 │   │           ├── CitasNotificaciones/
 │   │           │   ├── CU12_GestionarCitas/CrearCitaRequest.php
 │   │           │   ├── CU12_GestionarCitas/ReprogramarCitaRequest.php
-│   │           │   └── CU13_RegistrarAsistenciaInasistenciaAtencion/RegistrarAsistenciaRequest.php
+│   │           │   ├── CU13_RegistrarAsistenciaInasistenciaAtencion/RegistrarAsistenciaRequest.php
+│   │           │   └── CU27_GestionarPagosReembolsos/ProcesarPagoRequest.php
 │   │           └── HistoriaClinica/
 │   │               ├── CU18_RegistrarAtencionClinica/RegistrarAtencionRequest.php
 │   │               └── CU19_RegistrarResultadosLaboratorio/RegistrarLaboratorioRequest.php
@@ -106,7 +110,8 @@ backend/
 │   │   │   ├── CU13_RegistrarAsistenciaInasistenciaAtencion/RegistrarAsistenciaServicio.php
 │   │   │   ├── CU14_ConsultarAgendaCitas/ConsultarAgendaCitasServicio.php
 │   │   │   ├── CU15_ConsultarHistorialSeguimientoCitas/HistorialSeguimientoCitasServicio.php
-│   │   │   └── CU16_EnviarNotificacionesRecordatorios/EnviarNotificacionesServicio.php
+│   │   │   ├── CU16_EnviarNotificacionesRecordatorios/EnviarNotificacionesServicio.php
+│   │   │   └── CU27_GestionarPagosReembolsos/GestionarPagosReembolsosServicio.php
 │   │   ├── HistoriaClinica/
 │   │   │   ├── CU17_ConsultarMisPacientes/ConsultarMisPacientesServicio.php
 │   │   │   ├── CU18_RegistrarAtencionClinica/RegistrarAtencionClinicaServicio.php
@@ -125,7 +130,7 @@ backend/
 │       ├── Errores/RespuestaApi.php
 │       ├── Permisos/MiddlewareVerificarRol.php
 │       ├── Sesion/ManejadorSesion.php
-│       └── Validaciones/FormRequestPersonalizado.php
+│       └── Validaciones/FormRequestPersonalizado.php (Sanitización anti-XSS recursiva)
 └── routes/
     └── api.php
 ```
@@ -144,7 +149,7 @@ frontend/src/
 │   │   │   ├── IniciarSesion.jsx
 │   │   │   ├── SelectorPerfilLogin.jsx
 │   │   │   └── PaginaLogin.jsx
-│   │   ├── CU02_CambiarContrasena/
+│   │   ├── CU02_CambiarContrasena/ # CU-02: Cambiar y recuperar contraseña
 │   │   ├── CU03_RegistrarsePaciente/
 │   │   │   └── PaginaRegistroPaciente.jsx
 │   │   ├── CU04_AdministrarUsuariosRoles/
@@ -164,7 +169,11 @@ frontend/src/
 │   │   ├── CU13_RegistrarAsistenciaInasistenciaAtencion/
 │   │   ├── CU14_ConsultarAgendaCitas/PaginaAgendaCitas.jsx
 │   │   ├── CU15_ConsultarHistorialSeguimientoCitas/PaginaHistorialCitas.jsx
-│   │   └── CU16_EnviarNotificacionesRecordatorios/
+│   │   ├── CU16_EnviarNotificacionesRecordatorios/
+│   │   └── CU27_GestionarPagosReembolsos/
+│   │       ├── ModalPasarelaPagoSimulada.jsx
+│   │       ├── ComprobanteDigitalTransaccion.jsx
+│   │       └── InsigniaEstadoPago.jsx
 │   ├── HistoriaClinica/
 │   │   ├── CU17_ConsultarMisPacientes/
 │   │   ├── CU18_RegistrarAtencionClinica/FormularioAtencionClinica.jsx
@@ -176,6 +185,9 @@ frontend/src/
 │       ├── CU23_ExportarReportes/
 │       ├── CU24_ConsultarBitacoraAuditoria/PaginaBitacora.jsx
 │       └── CU25_VisualizarDashboardAdministrativo/PaginaDashboard.jsx
+├── comun/
+│   └── componentes/
+│       └── RutaProtegidaPorRol.jsx
 ├── compartido/
 │   ├── componentes/
 │   │   ├── Alerta.jsx
@@ -188,7 +200,7 @@ frontend/src/
 │   ├── layouts/
 │   │   └── LayoutPrincipal.jsx
 │   └── utilidades/
-│       └── api.js
+│       └── api.js (Interceptor Axios global para códigos 401 y 403)
 ├── publico/
 │   └── PaginaInicio.jsx
 └── App.jsx

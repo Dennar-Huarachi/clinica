@@ -27,8 +27,11 @@ class GestionarHorariosAtencionControlador extends Controller
     public function store(GuardarHorarioRequest $request): JsonResponse
     {
         try {
-            $id = $this->servicio->crear($request->validated());
-            return RespuestaApi::exito(['id_horario' => $id], 'Horario de atención registrado con éxito', 201);
+            $resultado = $this->servicio->crear($request->validated());
+            $datosRespuesta = is_array($resultado)
+                ? ['ids_horarios' => $resultado, 'total_creados' => count($resultado)]
+                : ['id_horario' => $resultado];
+            return RespuestaApi::exito($datosRespuesta, 'Horario(s) de atención registrado(s) con éxito', 201);
         } catch (\Exception $e) {
             $codigo = ($e->getCode() >= 400 && $e->getCode() <= 499) ? $e->getCode() : 400;
             return RespuestaApi::error($e->getMessage(), $codigo);

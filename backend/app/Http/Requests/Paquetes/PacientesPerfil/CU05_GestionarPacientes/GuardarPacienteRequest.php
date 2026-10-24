@@ -32,6 +32,9 @@ class GuardarPacienteRequest extends FormRequestPersonalizado
             'medicamentos_actuales' => 'nullable|string',
             'antecedentes_familiares' => 'nullable|string',
             'observaciones' => 'nullable|string',
+            'contacto_emergencia_nombre' => 'nullable|string|max:120',
+            'contacto_emergencia_telefono' => 'nullable|string|max:20',
+            'contacto_emergencia_parentesco' => 'nullable|string|max:40',
         ];
     }
 }

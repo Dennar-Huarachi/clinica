@@ -46,7 +46,7 @@ export default function PaginaBitacora() {
           <b>Bitácora</b> <span>de Auditoría del Sistema</span>
         </h2>
         <p style={{ color: 'var(--texto-sec)', fontSize: '0.9rem', marginBottom: '1.25rem' }}>
-          Registro estricto e inmutable de eventos, accesos y operaciones por caso de uso (RN21).
+          Registro estricto e inmutable de eventos, accesos y operaciones del sistema clínico.
         </p>
 
         <Alerta tipo={alerta?.tipo} mensaje={alerta?.mensaje} />
@@ -56,11 +56,11 @@ export default function PaginaBitacora() {
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: '220px' }}>
               <CampoTexto
-                etiqueta="Filtrar por Caso de Uso"
+                etiqueta="Filtrar por Módulo o Componente"
                 nombre="casoUso"
                 valor={casoUso}
                 alCambiar={(e) => setCasoUso(e.target.value)}
-                placeholder="Ej: CU02, CU04, CU05…"
+                placeholder="Ej: Citas, Usuarios, Pacientes…"
               />
             </div>
             <div style={{ flex: 1, minWidth: '220px' }}>

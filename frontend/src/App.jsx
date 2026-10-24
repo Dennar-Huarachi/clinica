@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+
+import RutaProtegidaPorRol from './comun/componentes/RutaProtegidaPorRol';
 
 import PaginaInicio from './publico/PaginaInicio';
 import IniciarSesion from './Paquetes/AccesoCuentas/CU01_IniciarCerrarSesion/IniciarSesion';
@@ -46,10 +48,22 @@ function PaginaNoEncontrada() {
 }
 
 export default function App() {
+  // Sincronización de sesión multi-pestaña en tiempo real (Anti-Suplantación)
+  useEffect(() => {
+    const sincronizarSesiones = (event) => {
+      if (event.key === 'token_clinica' || event.key === 'usuario_clinica') {
+        // Si otra pestaña cerró sesión o cambió de usuario/rol, forzar recarga
+        window.location.reload();
+      }
+    };
+    window.addEventListener('storage', sincronizarSesiones);
+    return () => window.removeEventListener('storage', sincronizarSesiones);
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>
-        {/* Rutas Públicas y de Autenticación Divididas (CU01) */}
+        {/* Rutas Públicas y de Autenticación */}
         <Route path="/" element={<PaginaInicio />} />
         <Route path="/login" element={<IniciarSesion />} />
         <Route path="/login/paciente" element={<LoginPaciente />} />
@@ -57,62 +71,327 @@ export default function App() {
         <Route path="/iniciar-sesion" element={<IniciarSesion />} />
         <Route path="/registro-paciente" element={<PaginaRegistroPaciente />} />
 
-        {/* Rutas Canónicas y de Navegación por Rol */}
-        {/* Paciente */}
-        <Route path="/paciente/mis-citas" element={<PaginaHistorialCitas />} />
-        <Route path="/paciente/reservar" element={<PaginaReservaCitas />} />
-        <Route path="/paciente/historial" element={<PaginaHistorialClinico />} />
-        <Route path="/paciente/perfil" element={<PaginaMiPerfil />} />
+        {/* ---------------- PACIENTE ---------------- */}
+        <Route
+          path="/paciente/mis-citas"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['paciente']}>
+              <PaginaHistorialCitas />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/paciente/reservar"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['paciente']}>
+              <PaginaReservaCitas />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/paciente/historial"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['paciente']}>
+              <PaginaHistorialClinico />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/paciente/perfil"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['paciente']}>
+              <PaginaMiPerfil />
+            </RutaProtegidaPorRol>
+          }
+        />
 
-        {/* Médico */}
-        <Route path="/medico/agenda" element={<PaginaAgendaCitas />} />
-        <Route path="/medico/pacientes" element={<PaginaGestionPacientes />} />
-        <Route path="/medico/atenciones" element={<PaginaHistorialClinico />} />
-        <Route path="/medico/laboratorio" element={<PaginaHistorialClinico />} />
+        {/* ---------------- MÉDICO ---------------- */}
+        <Route
+          path="/medico/agenda"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['medico']}>
+              <PaginaAgendaCitas />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/medico/pacientes"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['medico']}>
+              <PaginaGestionPacientes />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/medico/atenciones"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['medico']}>
+              <PaginaHistorialClinico />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/medico/laboratorio"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['medico']}>
+              <PaginaHistorialClinico />
+            </RutaProtegidaPorRol>
+          }
+        />
 
-        {/* Recepcionista */}
-        <Route path="/recepcion/citas" element={<PaginaAgendaCitas />} />
-        <Route path="/recepcion/agendar" element={<PaginaReservaCitas />} />
-        <Route path="/recepcion/pacientes" element={<PaginaGestionPacientes />} />
-        <Route path="/recepcion/suspensiones" element={<PaginaEspecialidades />} />
-        <Route path="/recepcion/reportes" element={<PaginaReportes />} />
+        {/* ---------------- RECEPCIONISTA ---------------- */}
+        <Route
+          path="/recepcion/citas"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['recepcionista', 'administrador']}>
+              <PaginaAgendaCitas />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/recepcion/agendar"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['recepcionista', 'administrador']}>
+              <PaginaReservaCitas />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/recepcion/pacientes"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['recepcionista', 'administrador']}>
+              <PaginaGestionPacientes />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/recepcion/suspensiones"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['recepcionista', 'administrador']}>
+              <PaginaEspecialidades />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/recepcion/reportes"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['recepcionista', 'administrador']}>
+              <PaginaReportes />
+            </RutaProtegidaPorRol>
+          }
+        />
 
-        {/* Administrador */}
-        <Route path="/admin/dashboard" element={<PaginaDashboard />} />
-        <Route path="/admin/especialidades" element={<PaginaEspecialidades />} />
-        <Route path="/admin/medicos" element={<PaginaMedicos />} />
-        <Route path="/admin/horarios" element={<PaginaHorarios />} />
-        <Route path="/admin/citas" element={<PaginaAgendaCitas />} />
-        <Route path="/admin/pacientes" element={<PaginaGestionPacientes />} />
-        <Route path="/admin/usuarios" element={<PaginaUsuariosRoles />} />
-        <Route path="/admin/bitacora" element={<PaginaBitacora />} />
-        <Route path="/admin/respaldos" element={<PaginaDashboard />} />
-        <Route path="/admin/reportes" element={<PaginaReportes />} />
+        {/* ---------------- ADMINISTRADOR ---------------- */}
+        <Route
+          path="/admin/dashboard"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaDashboard />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/admin/especialidades"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaEspecialidades />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/admin/medicos"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaMedicos />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/admin/horarios"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaHorarios />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/admin/citas"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaAgendaCitas />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/admin/pacientes"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaGestionPacientes />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/admin/usuarios"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaUsuariosRoles />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/admin/bitacora"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaBitacora />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/admin/respaldos"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaDashboard />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/admin/reportes"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaReportes />
+            </RutaProtegidaPorRol>
+          }
+        />
 
-        {/* Rutas Generales de Módulos */}
-        <Route path="/dashboard" element={<PaginaDashboard />} />
-        <Route path="/perfil" element={<PaginaMiPerfil />} />
-        <Route path="/cuenta/cambiar-contrasena" element={<PaginaCambiarContrasena />} />
+        {/* ---------------- RUTAS GENERALES Y ALIASES PROTEGIDOS ---------------- */}
+        <Route
+          path="/dashboard"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaDashboard />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/perfil"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador', 'medico', 'recepcionista', 'paciente']}>
+              <PaginaMiPerfil />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/cuenta/cambiar-contrasena"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador', 'medico', 'recepcionista', 'paciente']}>
+              <PaginaCambiarContrasena />
+            </RutaProtegidaPorRol>
+          }
+        />
 
-        {/* Citas y Agenda */}
-        <Route path="/citas/reserva" element={<PaginaReservaCitas />} />
-        <Route path="/citas/agenda" element={<PaginaAgendaCitas />} />
-        <Route path="/citas/historial" element={<PaginaHistorialCitas />} />
+        {/* Citas y Agenda Aliases */}
+        <Route
+          path="/citas/reserva"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['paciente', 'recepcionista', 'administrador']}>
+              <PaginaReservaCitas />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/citas/agenda"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['medico', 'recepcionista', 'administrador']}>
+              <PaginaAgendaCitas />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/citas/historial"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['paciente', 'recepcionista', 'administrador', 'medico']}>
+              <PaginaHistorialCitas />
+            </RutaProtegidaPorRol>
+          }
+        />
 
         {/* Pacientes e Historias */}
-        <Route path="/pacientes" element={<PaginaGestionPacientes />} />
-        <Route path="/historia-clinica" element={<PaginaGestionPacientes />} />
-        <Route path="/historia-clinica/:idPaciente" element={<PaginaHistorialClinico />} />
-        <Route path="/historia-clinica/atencion/:idCita" element={<FormularioAtencionClinica />} />
+        <Route
+          path="/pacientes"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['recepcionista', 'administrador', 'medico']}>
+              <PaginaGestionPacientes />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/historia-clinica"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['medico', 'recepcionista', 'administrador']}>
+              <PaginaGestionPacientes />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/historia-clinica/:idPaciente"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['medico', 'administrador', 'recepcionista']}>
+              <PaginaHistorialClinico />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/historia-clinica/atencion/:idCita"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['medico']}>
+              <FormularioAtencionClinica />
+            </RutaProtegidaPorRol>
+          }
+        />
 
         {/* Catálogos */}
-        <Route path="/medicos" element={<PaginaMedicos />} />
-        <Route path="/especialidades" element={<PaginaEspecialidades />} />
+        <Route
+          path="/medicos"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaMedicos />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/especialidades"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaEspecialidades />
+            </RutaProtegidaPorRol>
+          }
+        />
 
         {/* Administración y Reportes */}
-        <Route path="/usuarios" element={<PaginaUsuariosRoles />} />
-        <Route path="/reportes" element={<PaginaReportes />} />
-        <Route path="/auditoria" element={<PaginaBitacora />} />
+        <Route
+          path="/usuarios"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaUsuariosRoles />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/reportes"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador', 'recepcionista']}>
+              <PaginaReportes />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/auditoria"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaBitacora />
+            </RutaProtegidaPorRol>
+          }
+        />
 
         {/* 404 */}
         <Route path="*" element={<PaginaNoEncontrada />} />

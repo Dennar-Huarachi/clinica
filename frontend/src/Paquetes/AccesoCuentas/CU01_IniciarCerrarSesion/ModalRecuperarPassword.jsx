@@ -58,13 +58,13 @@ export default function ModalRecuperarPassword({ abierto, alCerrar, tipo = 'paci
           <div>
             <h3 className="modal-recuperar-titulo">
               {esPaciente
-                ? 'Recuperación de Contraseña'
+                ? 'Recuperar Contraseña de Acceso'
                 : 'Restablecimiento de Credenciales'}
             </h3>
             <span className="modal-recuperar-subtitulo">
               {esPaciente
-                ? 'Protocolo de Seguridad para Pacientes (CU-02 / CU-05)'
-                : 'Política de Administración de Sistemas (CU-04)'}
+                ? 'Protocolo de Seguridad para Pacientes'
+                : 'Política de Administración de Sistemas'}
             </span>
           </div>
 

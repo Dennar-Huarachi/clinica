@@ -1,4 +1,4 @@
-﻿backend/vendor/
+backend/vendor/
 backend/.env
 backend/storage/*.key
 frontend/node_modules/
@@ -8,3 +8,8 @@ frontend/.env
 .idea/
 Thumbs.db
 .DS_Store
+
+# Documentación interna excluida
+docs/
+*.md
+!README.md

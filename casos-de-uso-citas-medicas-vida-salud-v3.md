@@ -13,12 +13,12 @@ description: Catálogo final (v3) de 26 casos de uso del Sistema Web de Gestión
 
 ## 1. Resumen
 
-- **26 casos de uso:** 19 base y 7 opcionales. CU-24 a CU-26 son aportes propios del grupo: no vienen del enunciado ni de la docente.
-- El rango pedido es de 20 a 40 casos. Para cumplirlo hay que especificar y diagramar **los 19 base y al menos 1 opcional**.
+- **27 casos de uso:** 20 base y 7 opcionales. Incluye **CU-27** (Gestionar pagos y reembolsos de garantía de cita) desacoplado en Ciclo 1. CU-24 a CU-26 son aportes propios del grupo de auditoría y administración.
+- El rango pedido es de 20 a 40 casos. Para cumplirlo hay que especificar y diagramar los casos base y al menos 1 opcional.
 - Operaciones que persiguen el mismo objetivo se unieron en un solo caso (por ejemplo, Gestionar citas agrupa programar, reprogramar, cancelar y confirmar).
 - La validación de disponibilidad y conflictos **no es un caso aparte**: es un paso obligatorio dentro de Gestionar citas (CU-12) y de la reubicación en CU-11, ejecutado en el servidor.
 - Los nombres de tablas y campos de la base de datos deben estar **en español**.
-- Los 26 casos se organizan de dos formas: en **2 ciclos de desarrollo** (sección 11, orden de implementación) y en **6 paquetes** (sección 12, agrupación para los diagramas). Ambas agrupaciones usan los mismos identificadores CU.
+- Los 27 casos se organizan de dos formas: en **2 ciclos de desarrollo** (sección 11, orden de implementación) y en **6 paquetes** (sección 12, agrupación para los diagramas). Ambas agrupaciones usan los mismos identificadores CU.
 
 ## 2. Actores
 
@@ -52,6 +52,7 @@ description: Catálogo final (v3) de 26 casos de uso del Sistema Web de Gestión
 | CU-13 | Registrar asistencia, inasistencia o atención | Recepcionista / Médico | Base |
 | CU-14 | Consultar agenda de citas | Médico / Recepcionista | Base |
 | CU-15 | Consultar historial y seguimiento de citas | Recepcionista / Médico / Paciente | Base |
+| CU-27 | Procesar pago y reembolso simulado de reserva de cita | Paciente / Recepcionista | Base |
 | **Notificaciones** | | | |
 | CU-16 | Enviar notificaciones y recordatorios | Sistema | Base |
 | **Historia clínica** | | | |
@@ -258,39 +259,71 @@ Una cita Cancelada libera su turno (RN09).
 #### CU-12 — Gestionar citas (programar, reprogramar, cancelar y confirmar)
 - **Actores:** recepcionista; paciente (solo sus propias citas, en línea) · **Alcance:** Base
 - **Precondición:** sesión iniciada; paciente activo; médico activo; para el paciente, la especialidad debe ser reservable en línea (CU-07).
-- **Flujo principal A — Programar:** 1) Recepción busca al paciente (CU-05); si reserva el paciente, se usa su propia cuenta. 2) Elige especialidad, médico, fecha y turno libre (incluye CU-10). 3) Ingresa un motivo breve opcional y confirma. 4) El sistema **revalida en el servidor** (médico activo, dentro del horario, fecha no pasada, duración configurada, sin superposición, suspensión ni feriado) y reserva el turno de forma atómica (transacción y restricción en la base de datos). 5) Genera el código único (por ejemplo, CM-0001), fecha de creación, canal y usuario, y deja la cita en **Programada**. 6) Muestra el comprobante.
+- **Flujo principal A — Programar:** 1) Recepción busca al paciente (CU-05); si reserva el paciente, se usa su propia cuenta. 2) Elige especialidad, médico, fecha y turno libre (incluye CU-10). 3) Ingresa un motivo breve opcional. 4) Delega la ejecución transaccional del cobro del depósito de garantía de reserva (50.00 Bs, D17) en el caso de uso especializado **CU-27**, seleccionando método de pasarela simulada (QR interoperable o Tarjeta de débito/crédito). 5) El sistema **revalida en el servidor** (médico activo, dentro del horario, fecha no pasada, duración configurada, sin superposición, suspensión ni feriado) y reserva el turno de forma atómica en transacción (`DB::transaction` con `lockForUpdate()`) junto al registro de pago completado emitido por CU-27. 6) Genera el código único (ej. `CIT-YYYYMMDD-XXXXX`), número de transacción `TX-YYYYMMDD-XXXXX`, fecha de creación, canal y usuario, dejando la cita en **Programada** y el pago en **Completado**. 7) Emite el comprobante digital oficial.
 - **Flujo B — Reprogramar (recepcionista):** sobre una cita Programada o Confirmada, elige nueva fecha y turno libre (incluye CU-10), el sistema revalida, libera el turno anterior, conserva el código y registra la fecha y hora anteriores.
-- **Flujo C — Cancelar (recepcionista; paciente sus propias citas):** sobre una cita Programada, Confirmada o Postergada, indica el motivo (obligatorio para recepción, opcional para el paciente). El sistema la pasa a **Cancelada**, no la elimina y **libera el turno de inmediato**. El paciente en línea solo puede cancelar una cita Programada o Confirmada si faltan al menos N horas para el turno (RN15; por defecto 2, por confirmar); si falta menos, acude o llama a recepción, que cancela sin límite. Una cita Postergada la puede cancelar sin límite.
-- **Flujo D — Confirmar (paciente o recepcionista):** una cita Programada pasa a **Confirmada**, desde la cuenta del paciente o tras contactarlo. Es opcional: una cita Programada también puede atenderse.
-- **Alternativas:** si dos solicitudes piden el mismo turno a la vez, **se acepta la primera**; la otra recibe "ya no hay cupo" y vuelve a elegir; si no quedan turnos, no se puede sacar ficha ese día con ese médico. Paciente o médico inactivo, fecha pasada o especialidad solo presencial: no se registra. Cita Atendida, Cancelada o con Inasistencia: no se reprograma ni cancela; solo aplica la corrección autorizada de CU-13 (RN16) o se programa una cita nueva. Cita de otro paciente: acceso denegado. Si el paciente no puede cancelar en línea, acude a recepción. Si el personal reprograma o cancela y afecta al paciente, se le avisa (CU-16).
-- **Postcondición:** cita registrada, reprogramada, cancelada o confirmada, con turno ocupado o liberado y trazabilidad.
-- **Relaciones:** incluye CU-10; CU-16 la extiende.
-- **Referencia:** RF06–RF10, RF15, RN03–RN13, RN15, RN16, RN18; aclaraciones 11.4 y 11.5. Reprogramación en línea por el paciente: pendiente de política.
+- **Flujo C — Cancelar (recepcionista; paciente sus propias citas):** sobre una cita Programada, Confirmada o Postergada, indica el motivo (obligatorio para recepción, opcional para el paciente). El sistema la pasa a **Cancelada**, no la elimina y **libera el turno de inmediato**. Validación de anticipación de 12 horas y política de reembolso/retención (RN15, D5): Si faltan 12 horas o más para el inicio del turno ($\ge 12$h), la cita pasa a Cancelada y el pago pasa automáticamente a **Reembolsado** mediante CU-27, liberando el cupo y notificando al paciente. Si faltan menos de 12 horas ($< 12$h), el portal web del paciente bloquea la cancelación indicando el vencimiento del plazo de anticipación; recepción puede cancelar la cita en ventanilla registrando el pago en estado **Retenido** sin derecho a devolución en concepto de penalización administrativa. Una cita Postergada puede cancelarse en línea con reembolso automático completo.
+- **Flujo D — Confirmar (paciente o recepcionista):** una cita Programada pasa a **Confirmada**, desde la cuenta del paciente o tras contactarlo en ventanilla. Es opcional: una cita Programada también puede atenderse directamente.
+- **Alternativas:** si dos solicitudes piden el mismo turno a la vez, **se acepta la primera**; la otra recibe advertencia de cupo no disponible y vuelve a elegir; si no quedan turnos, no se puede sacar ficha ese día con ese médico. Paciente o médico inactivo, fecha pasada o especialidad solo presencial: no se registra. Cita Atendida, Cancelada o con Inasistencia: no se reprograma ni cancela; solo aplica la corrección autorizada de CU-13 (RN16) o se programa una cita nueva. Cita de otro paciente: acceso denegado por IDOR (RN19). Si el paciente no puede cancelar en línea, acude a recepción. Si el personal reprograma o cancela y afecta al paciente, se le avisa (CU-16).
+- **Postcondición:** cita registrada, reprogramada, cancelada o confirmada, con turno ocupado o liberado, pago asociado y trazabilidad inmutable.
+- **Relaciones:** incluye CU-10 y delega pago/reembolso en CU-27; CU-16 la extiende.
+- **Referencia:** RF06–RF10, RF15, RF23, RN03–RN13, RN15, RN16, RN18, RN19; D5, D17; aclaraciones 11.4 y 11.5.
 
 #### CU-13 — Registrar asistencia, inasistencia o atención
-- **Actores:** recepcionista; médico (sus pacientes, si tiene el permiso); administrador (solo la corrección autorizada) · **Alcance:** Base
-- **Precondición:** cita Programada o Confirmada y hora de la cita ya iniciada.
-- **Flujo principal:** 1) Abre la cita desde la agenda (CU-14). 2) Marca **Atendida** o **Inasistencia**. 3) El sistema valida la transición y guarda el estado con usuario, fecha y hora.
-- **Alternativas:** una cita Cancelada no se marca Atendida: no se reactiva, se programa una cita nueva con CU-12 (RN16). No se marca Atendida ni Inasistencia antes del inicio del turno. Médico sobre pacientes que no son suyos: denegado. Ejemplo de la docente: de 8 citas, 6 atendidas y 2 inasistencias.
-- **Flujo alternativo — Corrección autorizada (RN16):** si una cita quedó mal marcada, solo el Administrador puede cambiarla de Atendida a Inasistencia o al revés. Indica el motivo (obligatorio) y el sistema guarda la bitácora con usuario, fecha, estado anterior y estado nuevo. Ningún otro cambio de estado es posible sobre citas cerradas.
-- **Postcondición:** el estado queda disponible para historial y reportes.
-- **Referencia:** RF10, RN10, RN12, RN16; aclaraciones 11.6 y 11.7. Este caso solo cambia el estado; el registro clínico es CU-18.
+- **Actores:** recepcionista; médico (sus pacientes asignados); administrador (solo corrección autorizada RN16) · **Alcance:** Base
+- **Precondición:** cita Programada o Confirmada y hora de inicio del turno alcanzada en la fecha actual.
+- **Flujo principal:** 1) Abre la cita desde la agenda operativa (CU-14). 2) Marca **Atendida** o **Inasistencia**. 3) El sistema valida la transición y guarda el estado con usuario, fecha y hora. Si se marca Inasistencia, el pago de garantía asociado pasa a estado **Retenido** (CU-27 / RN15).
+- **Alternativas y restricciones:** 
+  1. **Restricción temporal estricta (RN10):** El sistema bloquea cualquier intento de marcar asistencia o inasistencia a citas en fechas futuras o en la fecha actual antes de la hora exacta de inicio del turno.
+  2. **Blindaje contra reactivación de citas canceladas (RN16):** Una cita en estado Cancelada jamás puede marcarse como Atendida ni reactivarse; requiere programar una nueva cita en CU-12.
+  3. Médico sobre pacientes que no le corresponden: denegado por aislamiento estricto de sesión (RN12/RN19).
+- **Flujo alternativo — Corrección Administrativa Autorizada (RN16):**
+  Si una cita cerrada quedó erróneamente tipificada, **únicamente el Administrador** tiene la potestad de conmutar su estado entre `atendida` ⇄ `inasistencia`. El procedimiento exige ingresar un motivo justificado obligatorio ($\ge 5$ caracteres). El sistema aplica la transición, preserva la inmutabilidad de los datos clínicos y registra el cambio con trazabilidad completa en `bitacora_auditoria` (RN21), detallando usuario administrador, fecha/hora, estado anterior, estado nuevo y motivo. Ninguna cita cancelada participa de este procedimiento.
+- **Postcondición:** estado actualizado con trazabilidad auditable, reflejado en historial y reportes.
+- **Referencia:** RF10, RN10, RN12, RN16, RN21; aclaraciones 11.6 y 11.7.
 
 #### CU-14 — Consultar agenda de citas
-- **Actores:** médico (la propia), recepcionista (cualquier médico) · **Alcance:** Base
-- **Precondición:** sesión y permiso de consulta.
-- **Flujo principal:** 1) Selecciona médico (si es recepcionista), fecha y, opcionalmente, estado. 2) El sistema muestra hora, código de cita, paciente, especialidad y estado. 3) Muestra el motivo breve solo si el actor tiene permiso.
-- **Alternativas:** sin citas: agenda vacía. El médico solo ve su agenda y sus pacientes.
-- **Postcondición:** se visualiza únicamente la agenda permitida.
-- **Referencia:** RF11, RN12; aclaración 11.7.
+- **Actores:** médico (su propia agenda); recepcionista y administrador (cualquier médico) · **Alcance:** Base
+- **Precondición:** sesión iniciada y permisos correspondientes.
+- **Flujo principal:** 1) Selecciona médico (para recepción/admin; para médico se bloquea al usuario autenticado). 2) Selecciona fecha de consulta (por defecto la fecha actual). 3) Aplica filtros opcionales dinámicos por **especialidad** y por **estado de cita** (`programada`, `confirmada`, `atendida`, `inasistencia`). 4) El sistema renderiza la cuadrícula operativa en `TablaExpandible.jsx` mostrando hora, código de cita, paciente, especialidad, estado y motivo breve, optimizado para móvil con filas colapsables sin scroll horizontal.
+- **Alternativas y reglas de aislamiento:**
+  1. **Aislamiento médico estricto por sesión (RN12, RN19):** Si el actor autenticado tiene rol Médico, el backend ignora cualquier parámetro externo de médico y filtra obligatoriamente por su propio `id_medico`, impidiendo visualizar agendas de otros profesionales.
+  2. **Exclusión de citas canceladas:** La vista operativa de la agenda excluye por defecto las citas en estado Cancelada para maximizar la legibilidad y gestión de turnos activos.
+  3. Sin citas en la fecha o filtros: muestra estado vacío informativo ("No se encontraron citas agendadas").
+- **Postcondición:** visualización operativa clara y aislada por rol sin scroll horizontal.
+- **Referencia:** RF11, RN12, RN19; aclaración 11.7.
 
 #### CU-15 — Consultar historial y seguimiento de citas
-- **Actores:** recepcionista (cualquier paciente), médico (sus pacientes), paciente (el propio) · **Alcance:** Base
-- **Precondición:** el paciente existe y el actor tiene permiso.
-- **Flujo principal:** 1) Selecciona al paciente (el paciente ve el suyo). 2) El sistema muestra fecha y hora, médico, especialidad, estado y fecha de registro, incluyendo citas pasadas y canceladas. 3) Permite filtrar por estado y rango de fechas. 4) El paciente ve además sus próximas citas pendientes y confirmadas.
-- **Alternativas:** sin citas: historial vacío. Sin autorización: acceso denegado.
-- **Postcondición:** se consulta la trazabilidad de citas sin modificarla.
-- **Referencia:** RF12, RN10–RN12; sección 3.5; aclaración 11.6.
+- **Actores:** paciente (sus propias citas); recepcionista y administrador (cualquier paciente); médico (sus pacientes asignados) · **Alcance:** Base
+- **Precondición:** sesión iniciada y rol autorizado.
+- **Flujo principal:** 1) El actor accede a la vista de historial. Si es paciente, el sistema extrae su identidad directamente del token de sesión. 2) El sistema carga el historial completo de citas en **orden cronológico descendente** (incluyendo citas pasadas, atendidas, inasistencias y canceladas, RN10). 3) Ofrece un **buscador reactivo en tiempo real** por código de cita, nombre o documento del paciente. 4) Permite filtrar por rango de fechas y por estado. 5) Para cada cita, despliega el detalle completo en tarjetas/acordeón móvil: fecha, hora, médico, especialidad, estado de la cita, motivo y la **insignia de estado del depósito de garantía** (`Completado`, `Reembolsado` o `Retenido`, proveniente de CU-27). 6) Permite visualizar y descargar el comprobante digital de transacción.
+- **Alternativas y seguridad:**
+  1. **Aislamiento de cuenta para pacientes (RN19):** El backend vincula forzosamente la consulta al `id_paciente` de la sesión criptográfica; cualquier intento de manipular identificadores en la URL o payload es rechazado automáticamente.
+  2. Sin registros coincidentes: estado vacío informativo con opción de restablecer filtros o buscar nuevo turno.
+- **Postcondición:** trazabilidad histórica y financiera de citas consultada sin mutación de datos.
+- **Referencia:** RF12, RF23, RN10, RN11, RN12, RN15, RN19; sección 3.5; aclaración 11.6.
+
+#### CU-27 — Gestionar pagos y reembolsos de garantía de cita
+- **Paquete:** Citas y Notificaciones (`CitasNotificaciones`).
+- **Alcance:** Base (Ciclo 1) — Decisión D17.
+- **Actores:** Paciente (Web), Recepcionista (Ventanilla).
+- **Precondición:** Turno disponible seleccionado en CU-10 o cita en proceso de registro en CU-12.
+- **Flujo Principal A (Cobro y Garantía):**
+  1. El sistema solicita el depósito de reserva parametrizado (50.00 Bs, configurable en `parametros_sistema`).
+  2. El actor selecciona el método de pasarela simulada: **QR Interoperable simple** o **Tarjeta de débito/crédito**.
+  3. El sistema valida los datos en pasarela simulada, procesa la transacción de forma atómica dentro de `DB::transaction()` y genera el número de transacción único `TX-YYYYMMDD-XXXXXX`.
+  4. Guarda el registro en la tabla `pagos_cita` con estado `completado`, vincula la clave foránea `citas.id_pago` y emite el comprobante digital oficial de transacción.
+  5. Registra en `bitacora_auditoria` el evento de auditoría `PAGO_GARANTIA_RESERVA_COMPLETADO` (RN21).
+- **Flujo Alternativo B (Reembolso Automático $\ge 12$h):**
+  1. Ante una cancelación solicitada con 12 o más horas de anticipación al turno ($\ge 12$h, RN15), el sistema actualiza el registro en `pagos_cita` asignando `estado_pago = 'reembolsado'` y `fecha_reembolso = now()`.
+  2. Registra en `bitacora_auditoria` el evento `REEMBOLSO_RESERVA_RN15`.
+  3. Emite notificación al paciente con la constancia de devolución íntegra del depósito.
+- **Flujo Alternativo C (Retención y Penalización $< 12$h o Inasistencia):**
+  1. Si la cancelación se ejecuta en ventanilla con menos de 12 horas de anticipación ($< 12$h) o se tipifica inasistencia del paciente en CU-13, el sistema actualiza `pagos_cita` a `estado_pago = 'retenido'`.
+  2. El monto de 50.00 Bs se consolida a favor de la clínica en concepto de penalización administrativa por bloqueo de agenda no aprovechado.
+  3. Registra en `bitacora_auditoria` el evento `PENALIZACION_RETENCION_PAGO_RN15`.
+- **Postcondición:** Transacción de pago registrada como Completada, Reembolsada o Retenida, vinculada 1:1 con la cita y trazabilidad inmutable en auditoría.
+- **Relaciones:** Invocado vía `<<include>>` por CU-12 al reservar; actualizado por eventos de cancelación en CU-12 y de inasistencia en CU-13.
+- **Referencia:** RF23, RN15, RN21, D5, D17.
 
 ### Notificaciones
 
@@ -419,16 +452,17 @@ RF01–RF13 vienen del enunciado. RF14–RF19 y RN15–RN20 se derivaron de las 
 | RF20 Bitácora de auditoría (opcional, aporte propio) | CU-24 |
 | RF21 Dashboard administrativo (opcional, aporte propio) | CU-25 |
 | RF22 Copias de seguridad (opcional, aporte propio) | CU-26 |
+| RF23 Pasarela de pago y reembolso simulado de cita | CU-12, CU-27 |
 
 | Regla derivada | Casos que la aplican |
 |---|---|
-| RN15 Cancelación en línea con anticipación mínima | CU-12 (flujo C) |
+| RN15 Cancelación en línea con anticipación de 12 horas y política de reembolso | CU-12 (flujo C), CU-27 |
 | RN16 Citas cerradas y corrección autorizada | CU-13, CU-12 |
 | RN17 Prioridad de las citas postergadas | CU-10, CU-11 |
 | RN18 Canal de reserva por especialidad | CU-07, CU-10, CU-12 |
 | RN19 Acceso del paciente y del médico a su propia información | CU-06, CU-12, CU-14, CU-15, CU-17, CU-20 |
 | RN20 Feriados y bloqueos de la clínica (opcional) | CU-09, CU-10, CU-12 |
-| RN21 Bitácora de auditoría | CU-24 (consulta); se registra desde CU-01, CU-04, CU-11, CU-12, CU-13 y CU-26 |
+| RN21 Bitácora de auditoría | CU-24 (consulta); se registra desde CU-01, CU-04, CU-11, CU-12, CU-13, CU-26 y CU-27 |
 | RN22 Copias de seguridad solo por el Administrador | CU-26 |
 
 ## 9. Decisiones adoptadas y pendientes
@@ -440,7 +474,8 @@ Detalle en la sección 12.2 del contexto. Las marcadas como suposición se confi
 |---|---|---|
 | Seis estados de cita; libre, ocupado y reservado son estados del turno, derivados (D2) | Sección 6, CU-11 | Suposición |
 | Citas cerradas: solo corrección Atendida ⇄ Inasistencia por el Administrador, con motivo y bitácora; Cancelada no se reactiva (D6, RN16) | Sección 6, CU-13, CU-12 | Suposición |
-| Cancelación en línea con anticipación mínima, por defecto 2 horas (D5, RN15) | CU-12 | Suposición |
+| Cancelación en línea con anticipación mínima de 12 horas y reembolso/retención (D5, RN15) | CU-12, CU-27 | Adoptada |
+| Garantía de reserva mediante pago simulado de 50 Bs (D17, RF23) | CU-12, CU-27 | Adoptada |
 | Prioridad de reubicación de citas postergadas, ventana por defecto de 48 horas (D7, RN17) | CU-10, CU-11 | Suposición |
 | Verificación de identidad al vincular cuenta: CI, fecha de nacimiento y teléfono (D8) | CU-03; CU-02 y CU-05 para restablecer contraseña en recepción | Suposición |
 | Disponibilidad solo con sesión iniciada (D9) | CU-10 | Suposición |
@@ -452,30 +487,29 @@ Detalle en la sección 12.2 del contexto. Las marcadas como suposición se confi
 | Tres casos opcionales propios: bitácora, dashboard y copias de seguridad (D14, RN21, RN22) | CU-24, CU-25, CU-26 | Suposición |
 
 ### Pendientes
-1. **Confirmar las suposiciones** con la pareja y con la docente, en especial los estados (D2), la cancelación en línea (D5), las citas cerradas (D6) y la prioridad de las postergadas (D7).
-2. **Valores finales** de la anticipación mínima para cancelar en línea (RN15) y de la ventana de prioridad de las postergadas (RN17).
+1. **Confirmar las suposiciones** con la pareja y con la docente, en especial los estados (D2), las citas cerradas (D6) y la prioridad de las postergadas (D7).
+2. **Valores finales** de la ventana de prioridad de las postergadas (RN17).
 3. **Canal de avisos y recordatorios** (CU-16): mensaje dentro del sistema como mínimo; correo o push si se implementa (si se agrega correo, CU-02 podría sumar recuperación de contraseña).
 4. **Alcance de historia clínica y laboratorio** (CU-17 a CU-20): datos, formatos, permisos y si se incluye el actor Laboratorio.
 5. **Reprogramación en línea** por el paciente: hoy solo la hace recepción.
 6. **Opcional que completa los 20 casos:** recomendación, CU-23 (exportar reportes), por ser el más barato e independiente de la historia clínica. Alternativas baratas porque usan datos que ya existen: CU-24 (bitácora) y CU-25 (dashboard). CU-18 y CU-20 si sobra tiempo.
-7. **Avance del 50 % en la Presentación 1:** con 26 casos, el Ciclo 1 queda en 13 de 26. Confirmar si el avance se mide por casos o de forma general; si fuera por casos, mover CU-24 al Ciclo 1 sube el avance a 14 de 26.
-8. **Marca "reservable en línea" por médico** (hoy solo por especialidad) y **duraciones variables** dentro de un mismo horario.
+7. **Marca "reservable en línea" por médico** (hoy solo por especialidad) y **duraciones variables** dentro de un mismo horario.
 
 ## 10. Recomendación para los diagramas
 
 - Usar el mismo identificador CU en los tres diagramas de cada caso.
-- Hacer primero los 19 casos base; luego los opcionales. Recuerda que hay que presentar al menos 1 opcional para llegar a 20.
+- Hacer primero los casos base; luego los opcionales. Recuerda que hay que presentar al menos 1 opcional para llegar a 20.
 - Como CU-12 agrupa cuatro operaciones, el diagrama de secuencia puede mostrarlas como cuatro escenarios (programar, reprogramar, cancelar, confirmar) del mismo caso.
-- En CU-12, CU-15 y CU-20 el paciente solo opera sobre sus propias citas o información (RN19); conviene indicarlo en la descripción del actor.
+- En CU-12, CU-15, CU-20 y CU-27 el paciente solo opera sobre sus propias citas o pagos (RN19); conviene indicarlo en la descripción del actor.
 - CU-13 puede mostrarse como dos escenarios: marcar Atendida o Inasistencia, y corrección autorizada por el Administrador (RN16).
 - En el diagrama del paquete 3, CU-11 y CU-10 comparten la regla de prioridad de las citas postergadas (RN17): CU-10 oculta esos turnos al público y CU-11 los ofrece al reubicar.
-- CU-24, CU-25 y CU-26 son aportes propios. Especificarlos y diagramarlos solo después de cumplir el mínimo (los 19 base y al menos 1 opcional); no son obligatorios.
+- CU-24, CU-25 y CU-26 son aportes propios. Especificarlos y diagramarlos solo después de cumplir el mínimo; no son obligatorios.
 
 ## 11. Ciclos de desarrollo
 
-Los 26 casos se desarrollan en dos ciclos. El Ciclo 1 reúne el núcleo operativo del sistema (acceso, pacientes, catálogos, horarios y citas); el Ciclo 2 completa el sistema con perfil, suspensión de horarios, notificaciones, historia clínica y reportes.
+Los 27 casos se desarrollan en dos ciclos. El Ciclo 1 reúne el núcleo operativo del sistema (acceso, pacientes, catálogos, horarios, citas y pasarela de garantía); el Ciclo 2 completa el sistema con perfil, suspensión de horarios, notificaciones, historia clínica y reportes.
 
-### Ciclo 1 (13 casos: todos base)
+### Ciclo 1 (14 casos: todos base)
 
 | ID | Caso de uso | Alcance |
 |---|---|---|
@@ -492,6 +526,7 @@ Los 26 casos se desarrollan en dos ciclos. El Ciclo 1 reúne el núcleo operativ
 | CU-13 | Registrar asistencia, inasistencia o atención | Base |
 | CU-14 | Consultar agenda de citas | Base |
 | CU-15 | Consultar historial y seguimiento de citas | Base |
+| CU-27 | Gestionar pagos y reembolsos de garantía de cita | Base |
 
 ### Ciclo 2 (13 casos: 6 base y 7 opcionales)
 
@@ -524,7 +559,7 @@ Según las relaciones de la sección 5 y las especificaciones de la sección 7, 
 - **Corrección autorizada (Ciclo 1):** CU-13 incluye la corrección del Administrador, que necesita la bitácora de cambios de estado ya en el Ciclo 1.
 - **CU-06 (Ciclo 2):** la información médica declarada se gestiona aquí, mientras que CU-03 (Ciclo 1) captura solo los datos básicos del registro.
 - **CU-23 (Ciclo 2) → CU-21 y CU-22:** CU-23 extiende a ambos y queda dentro del mismo ciclo.
-- **Bitácora (Ciclo 1) → CU-24 (Ciclo 2):** los eventos de RN21 deben guardarse desde el Ciclo 1 (sesiones, usuarios, estados de citas), así que conviene crear la tabla de bitácora en el primer esquema, aunque la consulta llegue después.
+- **Bitácora (Ciclo 1) → CU-24 (Ciclo 2):** los eventos de RN21 deben guardarse desde el Ciclo 1 (sesiones, usuarios, estados de citas, pagos), así que conviene crear la tabla de bitácora en el primer esquema, aunque la consulta llegue después.
 - **CU-25 (Ciclo 2) → CU-21 y CU-22:** el dashboard reutiliza sus consultas y se desarrolla con ellos.
 - **CU-26 (Ciclo 2):** independiente del resto; registra sus operaciones en la bitácora.
 
@@ -532,7 +567,7 @@ Los 7 casos opcionales (CU-18, CU-19, CU-20, CU-23, CU-24, CU-25 y CU-26) están
 
 ## 12. Paquetes de casos de uso
 
-Agrupación de los 26 casos en 6 paquetes, útil para organizar los diagramas de casos de uso. Cada paquete indica en qué ciclo se desarrolla cada caso.
+Agrupación de los 27 casos en 6 paquetes, útil para organizar los diagramas de casos de uso. Cada paquete indica en qué ciclo se desarrolla cada caso.
 
 ### Paquete 1: Acceso y cuentas
 
@@ -569,6 +604,7 @@ Agrupación de los 26 casos en 6 paquetes, útil para organizar los diagramas de
 | CU-13 | Registrar asistencia, inasistencia o atención | Base | 1 |
 | CU-14 | Consultar agenda de citas | Base | 1 |
 | CU-15 | Consultar historial y seguimiento de citas | Base | 1 |
+| CU-27 | Gestionar pagos y reembolsos de garantía de cita | Base | 1 |
 | CU-16 | Enviar notificaciones y recordatorios | Base | 2 |
 
 ### Paquete 5: Historia clínica
