@@ -27,8 +27,8 @@ class GestionarCitasControlador extends Controller
         // Blindaje IDOR (RN19): Si es rol paciente, forzar exclusivamente su propio id_paciente
         if (strtolower($usuario?->rol ?? '') === 'paciente') {
             $idPaciente = (int)($usuario->id_paciente ?? 0);
-            if (!$idPaciente) {
-                $paciente = DB::table('pacientes')->where('id_usuario', $usuario->id_usuario)->first();
+            if (!$idPaciente && !empty($usuario->id_persona)) {
+                $paciente = DB::table('pacientes')->where('id_persona', $usuario->id_persona)->first();
                 $idPaciente = (int)($paciente?->id_paciente ?? 0);
             }
             if (!$idPaciente) {
@@ -60,8 +60,8 @@ class GestionarCitasControlador extends Controller
             // Blindaje IDOR (RN19): Forzar incondicionalmente el id_paciente autenticado
             if (strtolower($usuario?->rol ?? '') === 'paciente') {
                 $idPaciente = (int)($usuario->id_paciente ?? 0);
-                if (!$idPaciente) {
-                    $paciente = DB::table('pacientes')->where('id_usuario', $usuario->id_usuario)->first();
+                if (!$idPaciente && !empty($usuario->id_persona)) {
+                    $paciente = DB::table('pacientes')->where('id_persona', $usuario->id_persona)->first();
                     $idPaciente = (int)($paciente?->id_paciente ?? 0);
                 }
                 if (!$idPaciente) {

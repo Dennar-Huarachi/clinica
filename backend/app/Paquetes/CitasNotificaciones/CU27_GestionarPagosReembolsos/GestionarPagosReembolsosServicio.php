@@ -22,8 +22,8 @@ class GestionarPagosReembolsosServicio
             // Blindaje IDOR (RN19): Si es rol paciente, verificar propiedad de la cita
             if (is_object($usuarioOperador) && strtolower($usuarioOperador->rol ?? '') === 'paciente') {
                 $idPacienteUsuario = (int)($usuarioOperador->id_paciente ?? 0);
-                if (!$idPacienteUsuario) {
-                    $paciente = DB::table('pacientes')->where('id_usuario', $usuarioOperador->id_usuario)->first();
+                if (!$idPacienteUsuario && !empty($usuarioOperador->id_persona)) {
+                    $paciente = DB::table('pacientes')->where('id_persona', $usuarioOperador->id_persona)->first();
                     $idPacienteUsuario = (int)($paciente?->id_paciente ?? 0);
                 }
                 if ((int)$cita->id_paciente !== $idPacienteUsuario) {
@@ -155,8 +155,8 @@ class GestionarPagosReembolsosServicio
             // Blindaje IDOR (RN19): Si es rol paciente, verificar propiedad de la cita
             if (is_object($usuarioOperador) && strtolower($usuarioOperador->rol ?? '') === 'paciente') {
                 $idPacienteUsuario = (int)($usuarioOperador->id_paciente ?? 0);
-                if (!$idPacienteUsuario) {
-                    $paciente = DB::table('pacientes')->where('id_usuario', $usuarioOperador->id_usuario)->first();
+                if (!$idPacienteUsuario && !empty($usuarioOperador->id_persona)) {
+                    $paciente = DB::table('pacientes')->where('id_persona', $usuarioOperador->id_persona)->first();
                     $idPacienteUsuario = (int)($paciente?->id_paciente ?? 0);
                 }
                 if ((int)$cita->id_paciente !== $idPacienteUsuario) {

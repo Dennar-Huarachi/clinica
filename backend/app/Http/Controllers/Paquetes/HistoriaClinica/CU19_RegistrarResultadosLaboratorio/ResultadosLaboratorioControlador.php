@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Paquetes\HistoriaClinica\CU19_RegistrarResultados
 
 use App\Paquetes\HistoriaClinica\CU19_RegistrarResultadosLaboratorio\ResultadosLaboratorioServicio;
 use App\Http\Requests\Paquetes\HistoriaClinica\CU19_RegistrarResultadosLaboratorio\RegistrarLaboratorioRequest;
-
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -16,24 +15,52 @@ class ResultadosLaboratorioControlador extends Controller
         protected ResultadosLaboratorioServicio $servicio
     ) {}
 
+    /**
+     * Lista los estudios de laboratorio de un paciente.
+     * RN19: Si el usuario es paciente, aísla la consulta forzosamente a su propio id_paciente.
+     */
     public function index(Request $request): JsonResponse
     {
-        $idPaciente = (int)$request->query('id_paciente');
-        if (!$idPaciente) {
-            return RespuestaApi::error('Debe proporcionar el id_paciente', 422);
+        $usuario = $request->attributes->get('usuario_autenticado');
+        if (!$usuario) {
+            return RespuestaApi::error('Sesión no identificada.', 401);
         }
 
-        return RespuestaApi::exito($this->servicio->listarPorPaciente($idPaciente));
+        $rol = strtolower($usuario->rol ?? '');
+        $idPaciente = null;
+
+        if ($rol === 'paciente') {
+            $idPaciente = (int)($usuario->id_paciente ?? 0);
+            if (!$idPaciente) {
+                return RespuestaApi::error('Perfil de paciente no vinculado al usuario en sesión.', 403);
+            }
+        } else {
+            $idPaciente = $request->query('id_paciente') ? (int)$request->query('id_paciente') : null;
+            if (!$idPaciente) {
+                return RespuestaApi::error('Debe indicar el identificador del paciente para listar sus estudios.', 422);
+            }
+        }
+
+        $laboratorios = $this->servicio->listarPorPaciente($idPaciente);
+        return RespuestaApi::exito($laboratorios);
     }
 
+    /**
+     * Registra un nuevo resultado de estudio clínico o prueba de laboratorio.
+     */
     public function store(RegistrarLaboratorioRequest $request): JsonResponse
     {
         try {
             $usuario = $request->attributes->get('usuario_autenticado');
             $id = $this->servicio->registrar($request->validated(), $usuario?->id_usuario);
-            return RespuestaApi::exito(['id_resultado' => $id], 'Resultado de laboratorio registrado exitosamente', 201);
+
+            return RespuestaApi::exito(
+                ['id_resultado' => $id],
+                'Estudio de laboratorio registrado exitosamente en el historial clínico.',
+                201
+            );
         } catch (\Exception $e) {
-            return RespuestaApi::error('Error al registrar resultado: ' . $e->getMessage(), 400);
+            return RespuestaApi::error('Error al registrar estudio de laboratorio: ' . $e->getMessage(), 400);
         }
     }
 }

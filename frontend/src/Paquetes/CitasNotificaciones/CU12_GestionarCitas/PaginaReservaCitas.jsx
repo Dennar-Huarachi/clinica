@@ -145,7 +145,7 @@ export default function PaginaReservaCitas() {
             <b>Reserva</b> <span>de Citas Médicas</span>
           </h2>
           <p style={{ color: 'var(--texto-sec)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-            Selecciona la especialidad, el médico y el horario de tu preferencia con garantía de reserva (D17, RN15).
+            Selecciona la especialidad, el médico y el horario de tu preferencia con confirmación inmediata de reserva.
           </p>
 
           <Alerta tipo={alerta?.tipo} mensaje={alerta?.mensaje} />

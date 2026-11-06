@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { resolverTituloRuta } from './rutasPorRol';
+import CampanaNotificaciones from '../Paquetes/CitasNotificaciones/CU16_EnviarNotificacionesRecordatorios/CampanaNotificaciones';
 
 export default function HeaderSuperior({ onToggleDrawer, tituloPersonalizado }) {
   const location = useLocation();
@@ -65,8 +66,9 @@ export default function HeaderSuperior({ onToggleDrawer, tituloPersonalizado }) 
         </div>
       </div>
 
-      {/* Lado Derecho: Perfil de Usuario */}
+      {/* Lado Derecho: Campana de Notificaciones y Perfil de Usuario */}
       <div className="header-lado-derecho">
+        <CampanaNotificaciones />
         <div className="header-perfil-contenedor">
           {/* Avatar circular */}
           <div className="header-avatar-circulo" title={`Sesión activa: ${nombreCompleto}`}>

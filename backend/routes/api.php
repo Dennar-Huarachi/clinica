@@ -83,16 +83,16 @@ Route::middleware(['sesion.clinica'])->group(function () {
     // --- PAQUETE 1: AccesoCuentas ---
     Route::get('/acceso/verificar', [IniciarCerrarSesionControlador::class, 'verificar']);
     Route::post('/acceso/logout', [IniciarCerrarSesionControlador::class, 'logout']);
-    Route::post('/acceso/cambiar-contrasena', [CambiarContrasenaControlador::class, 'cambiar']);
+    Route::post('/acceso/cambiar-contrasena', [CambiarContrasenaControlador::class, 'cambiar'])->middleware('throttle:10,1');
 
     // --- PAQUETE 3: Catálogos y Horarios (CU10 - Decisión D9) ---
     Route::get('/catalogos/disponibilidad', [ConsultarDisponibilidadControlador::class, 'consultar']);
 
     // --- PAQUETE 2: PacientesPerfil ---
     Route::get('/perfil/mi-perfil', [GestionarMiPerfilControlador::class, 'show']);
-    Route::put('/perfil/mi-perfil', [GestionarMiPerfilControlador::class, 'update']);
+    Route::put('/perfil/mi-perfil', [GestionarMiPerfilControlador::class, 'update'])->middleware('throttle:30,1');
     Route::get('/perfil', [GestionarMiPerfilControlador::class, 'show']);
-    Route::put('/perfil', [GestionarMiPerfilControlador::class, 'update']);
+    Route::put('/perfil', [GestionarMiPerfilControlador::class, 'update'])->middleware('throttle:30,1');
 
     // --- PAQUETE 4: CitasNotificaciones (Transaccionales protegidas con throttle:60,1) ---
     Route::get('/citas', [GestionarCitasControlador::class, 'index']);
@@ -110,6 +110,7 @@ Route::middleware(['sesion.clinica'])->group(function () {
 
     Route::get('/notificaciones', [EnviarNotificacionesControlador::class, 'index']);
     Route::put('/notificaciones/{id}/leida', [EnviarNotificacionesControlador::class, 'marcarLeida']);
+    Route::put('/notificaciones/leer-todas', [EnviarNotificacionesControlador::class, 'marcarTodasLeidas']);
 
     // Historia clínica para el propio paciente
     Route::get('/historia-clinica/pacientes/{idPaciente}', [ConsultarHistorialClinicoControlador::class, 'show']);
@@ -129,6 +130,13 @@ Route::middleware(['sesion.clinica'])->group(function () {
         Route::put('/pacientes/{id}', [GestionarPacientesControlador::class, 'update']);
         Route::patch('/pacientes/{id}/alternar-estado', [GestionarPacientesControlador::class, 'alternarEstado']);
 
+        // CU11: Suspender Horario y Gestionar Citas Afectadas (Reubicación prioritaria)
+        Route::get('/catalogos/suspensiones', [SuspenderHorarioControlador::class, 'index']);
+        Route::post('/catalogos/suspensiones', [SuspenderHorarioControlador::class, 'store']);
+        Route::get('/catalogos/suspensiones/citas-postergadas', [SuspenderHorarioControlador::class, 'citasPostergadas']);
+        Route::post('/catalogos/suspensiones/reubicar-cita', [SuspenderHorarioControlador::class, 'reubicar']);
+        Route::delete('/catalogos/suspensiones/{id}', [SuspenderHorarioControlador::class, 'destroy']);
+
         // CU16
         Route::post('/notificaciones/disparar-recordatorios', [EnviarNotificacionesControlador::class, 'dispararRecordatorios']);
     });
@@ -141,8 +149,9 @@ Route::middleware(['sesion.clinica'])->group(function () {
     Route::middleware(['rol:administrador,medico'])->group(function () {
         // CU17, CU18, CU19
         Route::get('/historia-clinica/mis-pacientes', [ConsultarMisPacientesControlador::class, 'index']);
-        Route::post('/historia-clinica/atenciones', [RegistrarAtencionClinicaControlador::class, 'store']);
-        Route::post('/historia-clinica/laboratorios', [ResultadosLaboratorioControlador::class, 'store']);
+        Route::post('/historia-clinica/atenciones', [RegistrarAtencionClinicaControlador::class, 'store'])->middleware('throttle:60,1');
+        Route::get('/historia-clinica/atenciones/cita/{idCita}', [RegistrarAtencionClinicaControlador::class, 'showPorCita']);
+        Route::post('/historia-clinica/laboratorios', [ResultadosLaboratorioControlador::class, 'store'])->middleware('throttle:60,1');
         Route::get('/historia-clinica/laboratorios', [ResultadosLaboratorioControlador::class, 'index']);
     });
 
@@ -175,23 +184,33 @@ Route::middleware(['sesion.clinica'])->group(function () {
         Route::put('/catalogos/medicos/{id}', [GestionarMedicosControlador::class, 'update']);
         Route::patch('/catalogos/medicos/{id}/alternar-estado', [GestionarMedicosControlador::class, 'alternarEstado']);
 
-        // CU09 & CU11
+        // CU09
         Route::get('/catalogos/horarios', [GestionarHorariosAtencionControlador::class, 'index']);
         Route::post('/catalogos/horarios', [GestionarHorariosAtencionControlador::class, 'store']);
         Route::put('/catalogos/horarios/{id}', [GestionarHorariosAtencionControlador::class, 'update']);
         Route::patch('/catalogos/horarios/{id}/alternar-estado', [GestionarHorariosAtencionControlador::class, 'alternarEstado']);
 
-        Route::get('/catalogos/suspensiones', [SuspenderHorarioControlador::class, 'index']);
-        Route::post('/catalogos/suspensiones', [SuspenderHorarioControlador::class, 'store']);
-
-        // CU21, CU22, CU23, CU24, CU25, CU26
-        Route::get('/reportes/citas', [ReportesCitasControlador::class, 'index']);
+        // CU21 Consultar reportes de citas (Accesible por Administrador y Recepcionista)
+        Route::get('/reportes/citas', [ReportesCitasControlador::class, 'index'])->middleware('rol:administrador,recepcionista');
         Route::get('/reportes/asistencia', [ReporteAsistenciaControlador::class, 'index']);
-        Route::get('/reportes/exportar', [ExportarReportesControlador::class, 'exportarCitas']);
+        Route::get('/reportes/exportar', [ExportarReportesControlador::class, 'exportar']);
+        
+        // CU24 Consultar bitácora de auditoría (Exclusivo Administrador)
+        Route::get('/auditoria', [ConsultarBitacoraControlador::class, 'index']);
         Route::get('/auditoria/bitacora', [ConsultarBitacoraControlador::class, 'index']);
+
+        // CU25 Visualizar dashboard administrativo
+        Route::get('/reportes/dashboard', [DashboardAdministrativoControlador::class, 'index']);
         Route::get('/dashboard/metricas', [DashboardAdministrativoControlador::class, 'index']);
 
+        // CU26 Generar y restaurar copias de seguridad (Exclusivo Administrador)
+        Route::get('/seguridad/backups', [GenerarRestaurarCopiasSeguridadControlador::class, 'index']);
+        Route::post('/seguridad/backups', [GenerarRestaurarCopiasSeguridadControlador::class, 'store'])->middleware('throttle:10,1');
+        Route::get('/seguridad/backups/{id}/descargar', [GenerarRestaurarCopiasSeguridadControlador::class, 'descargar']);
+        Route::post('/seguridad/backups/{id}/restaurar', [GenerarRestaurarCopiasSeguridadControlador::class, 'restaurar'])->middleware('throttle:5,1');
+
+        // Aliases de administración de backups
         Route::get('/administracion/backups', [GenerarRestaurarCopiasSeguridadControlador::class, 'index']);
-        Route::post('/administracion/backups', [GenerarRestaurarCopiasSeguridadControlador::class, 'store']);
+        Route::post('/administracion/backups', [GenerarRestaurarCopiasSeguridadControlador::class, 'store'])->middleware('throttle:10,1');
     });
 });

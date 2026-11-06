@@ -142,6 +142,12 @@ export const RUTAS_POR_ROL = {
           ruta: '/admin/horarios',
           icono: 'horarios',
           descripcion: 'Turnos y disponibilidad semanal'
+        },
+        {
+          titulo: 'Suspensiones y Contingencias',
+          ruta: '/admin/suspensiones',
+          icono: 'pausa',
+          descripcion: 'Suspensiones médicas y reubicaciones'
         }
       ]
     },
@@ -244,7 +250,9 @@ export const TITULOS_RUTAS = {
   '/recepcion/citas': 'Ventanilla - Agenda General de Citas',
   '/recepcion/agendar': 'Ventanilla - Programar Cita',
   '/recepcion/pacientes': 'Ventanilla - Padrón de Pacientes',
-  '/recepcion/suspensiones': 'Ventanilla - Suspensiones de Horario',
+  '/recepcion/suspensiones': 'Gestión de Suspensiones y Reubicación de Citas',
+  '/admin/suspensiones': 'Gestión de Suspensiones y Reubicación de Citas',
+  '/suspensiones': 'Gestión de Suspensiones y Reubicación de Citas',
   '/recepcion/reportes': 'Ventanilla - Reportes de Citas',
 
   '/pacientes': 'Gestión de Pacientes',

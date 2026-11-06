@@ -17,17 +17,20 @@ import PaginaMiPerfil from './Paquetes/PacientesPerfil/CU06_GestionarMiPerfil/Pa
 import PaginaEspecialidades from './Paquetes/CatalogosHorarios/CU07_GestionarEspecialidades/PaginaEspecialidades';
 import PaginaMedicos from './Paquetes/CatalogosHorarios/CU08_GestionarMedicos/PaginaMedicos';
 import PaginaHorarios from './Paquetes/CatalogosHorarios/CU09_GestionarHorariosAtencion/PaginaHorarios';
+import PaginaSuspensiones from './Paquetes/CatalogosHorarios/CU11_SuspenderHorarioGestionarCitasAfectadas/PaginaSuspensiones';
 
 import PaginaReservaCitas from './Paquetes/CitasNotificaciones/CU12_GestionarCitas/PaginaReservaCitas';
 import PaginaAgendaCitas from './Paquetes/CitasNotificaciones/CU14_ConsultarAgendaCitas/PaginaAgendaCitas';
 import PaginaHistorialCitas from './Paquetes/CitasNotificaciones/CU15_ConsultarHistorialSeguimientoCitas/PaginaHistorialCitas';
 
 import FormularioAtencionClinica from './Paquetes/HistoriaClinica/CU18_RegistrarAtencionClinica/FormularioAtencionClinica';
+import PaginaKardexPacientes from './Paquetes/HistoriaClinica/CU17_ConsultarMisPacientes/PaginaKardexPacientes';
 import PaginaHistorialClinico from './Paquetes/HistoriaClinica/CU20_ConsultarHistorialClinico/PaginaHistorialClinico';
 
 import PaginaReportes from './Paquetes/Reportes/CU21_ConsultarReportesCitas/PaginaReportes';
 import PaginaBitacora from './Paquetes/Reportes/CU24_ConsultarBitacoraAuditoria/PaginaBitacora';
 import PaginaDashboard from './Paquetes/Reportes/CU25_VisualizarDashboardAdministrativo/PaginaDashboard';
+import PaginaCopiasSeguridad from './Paquetes/AccesoCuentas/CU26_GenerarRestaurarCopiasSeguridad/PaginaCopiasSeguridad';
 
 function PaginaNoEncontrada() {
   return (
@@ -118,7 +121,7 @@ export default function App() {
           path="/medico/pacientes"
           element={
             <RutaProtegidaPorRol rolesPermitidos={['medico']}>
-              <PaginaGestionPacientes />
+              <PaginaKardexPacientes />
             </RutaProtegidaPorRol>
           }
         />
@@ -168,7 +171,7 @@ export default function App() {
           path="/recepcion/suspensiones"
           element={
             <RutaProtegidaPorRol rolesPermitidos={['recepcionista', 'administrador']}>
-              <PaginaEspecialidades />
+              <PaginaSuspensiones />
             </RutaProtegidaPorRol>
           }
         />
@@ -215,6 +218,14 @@ export default function App() {
           }
         />
         <Route
+          path="/admin/suspensiones"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaSuspensiones />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
           path="/admin/citas"
           element={
             <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
@@ -250,7 +261,23 @@ export default function App() {
           path="/admin/respaldos"
           element={
             <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
-              <PaginaDashboard />
+              <PaginaCopiasSeguridad />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/respaldos"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaCopiasSeguridad />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/seguridad/backups"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['administrador']}>
+              <PaginaCopiasSeguridad />
             </RutaProtegidaPorRol>
           }
         />
@@ -334,6 +361,14 @@ export default function App() {
         />
         <Route
           path="/historia-clinica/:idPaciente"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['medico', 'administrador', 'recepcionista']}>
+              <PaginaHistorialClinico />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/historia-clinica/pacientes/:idPaciente"
           element={
             <RutaProtegidaPorRol rolesPermitidos={['medico', 'administrador', 'recepcionista']}>
               <PaginaHistorialClinico />

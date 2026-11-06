@@ -1,8 +1,8 @@
 # Sistema Web de Gestión de Citas Médicas — Clínica "Vida Salud"
-> **Documentación Técnica Integral de Análisis y Diseño UML (Ciclo 1 — Metodología PUDS)**  
+> **Documentación Técnica Integral de Análisis y Diseño UML (Metodología PUDS)**  
 > **Asignatura:** Ingeniería de Requisitos / Ingeniería de Software I — FCET / UAGRM  
 > **Metodología:** Proceso Unificado de Desarrollo de Software (PUDS)  
-> **Patrón Arquitectónico:** Layered Package-by-Feature (Laravel 12 REST API + React 19 SPA + PostgreSQL)  
+> **Patrón Arquitectónico:** Layered Package-by-Feature (Laravel 13 REST API + React 19 SPA + PostgreSQL 18)  
 
 ---
 
@@ -10,39 +10,43 @@
 
 * **Institución:** Universidad Autónoma Gabriel René Moreno (UAGRM) — FCET.
 * **Materia:** Ingeniería de Requisitos / Sistemas de Información I.
-* **Alcance Documentado:** 14 Casos de Uso certificados correspondientes al **Ciclo 1** (`CU-01`, `CU-02`, `CU-03`, `CU-04`, `CU-05`, `CU-07`, `CU-08`, `CU-09`, `CU-10`, `CU-12`, `CU-13`, `CU-14`, `CU-15` y `CU-27` como caso independiente).
+* **Alcance:** 27 Casos de Uso integrales (20 base y 7 opcionales), organizados en 6 paquetes funcionales (`AccesoCuentas`, `PacientesPerfil`, `CatalogosHorarios`, `CitasNotificaciones`, `HistoriaClinica`, `Reportes`).
 * **Fidelidad al Código Fuente (1:1):** Cada nombre de clase, componente React, ruta física, signatura de método, parámetro y tabla de base de datos coincide de forma estricta con el código implementado en `backend/` y `frontend/`.
 * **Stack Tecnológico:**
-  - **Backend:** PHP 8.2+ / Laravel 12 (REST API, FormRequests personalizados, Servicios de Dominio).
-  - **Frontend:** React 19 / Vite / Tailwind CSS / Vanilla CSS (Mobile-First, sin scroll horizontal, zonas táctiles $\ge 44$px).
-  - **Persistencia:** PostgreSQL 18 con integridad referencial, transacciones ACID y bloqueo pesimista `lockForUpdate()`.
-  - **Seguridad (OWASP Top 10):** Middleware de cabeceras HTTP (`CabecerasSeguridad.php`), sanitización anti-XSS recursiva (`strip_tags()`), Rate Limiting granular (`throttle:5,1`, `throttle:10,1`, `throttle:60,1`), prevención IDOR en tokens criptográficos e interceptor Axios ante errores 401/403.
+  - **Backend:** PHP 8.3+ / Laravel 13 (REST API, FormRequests personalizados con sanitización anti-XSS recursiva, Servicios de Dominio con transacciones ACID).
+  - **Frontend:** React 19 / Vite / CSS Modular Nativo (Variables CSS en `:root`, Mobile-First estricto, sin scroll horizontal mediante `TablaExpandible.jsx`, zonas táctiles $\ge 44$px).
+  - **Persistencia:** PostgreSQL 18 con 23 tablas normalizadas, integridad referencial estricta, transacciones ACID y bloqueo pesimista `lockForUpdate()`.
+  - **Seguridad (OWASP Top 10):** Middleware de cabeceras HTTP (`CabecerasSeguridad.php`), sanitización anti-XSS recursiva (`strip_tags()`), Rate Limiting granular (`throttle:5,1`, `throttle:10,1`, `throttle:60,1`), prevención IDOR con extracción de identidad desde tokens de sesión e interceptor Axios ante errores 401/403.
 
 ---
 
-## 2. Mapa de Persistencia Relacional (Entidades PostgreSQL)
+## 2. Mapa de Persistencia Relacional (23 Entidades PostgreSQL 18)
 
-| Tabla Física | Descripción de Dominio y Atributos Clave |
+| Tabla Física | Descripción de Dominio y Atributos Físicos Clave |
 | :--- | :--- |
-| `personas` | `id_persona`, `ci`, `nombres`, `apellidos`, `fecha_nacimiento`, `sexo`, `telefono`, `correo`, `direccion` |
-| `usuarios` | `id_usuario`, `id_persona`, `id_rol`, `nombre_usuario`, `correo`, `contrasena_hash`, `token_sesion`, `estado`, `debe_cambiar_contrasena`, `ultimo_acceso` |
-| `roles` | `id_rol`, `nombre`, `descripcion` (`administrador`, `recepcionista`, `medico`, `paciente`) |
-| `permisos` | `id_permiso`, `modulo`, `nombre`, `slug`, `descripcion` |
-| `rol_permiso` | `id_rol`, `id_permiso` (Relación M:N) |
-| `pacientes` | `id_paciente`, `id_persona`, `codigo_historia`, `grupo_sanguineo`, `estado` |
-| `contactos_emergencia` | `id_contacto`, `id_paciente`, `nombre_completo`, `relacion`, `telefono` |
-| `informacion_medica_paciente` | `id_info_medica`, `id_paciente`, `alergias`, `enfermedades_cronicas`, `medicamentos_actuales`, `antecedentes_quirurgicos` |
-| `especialidades` | `id_especialidad`, `nombre`, `nombre_normalizado`, `descripcion`, `duracion_turno_minutos`, `reservable_en_linea`, `estado` |
-| `medicos` | `id_medico`, `id_persona`, `nro_matricula`, `biografia`, `estado` |
-| `medico_especialidad` | `id_medico`, `id_especialidad` (Relación M:N) |
-| `horarios_atencion` | `id_horario`, `id_medico`, `id_especialidad`, `dia_semana`, `hora_inicio`, `hora_fin`, `duracion_turno_minutos`, `estado` |
-| `bloqueos_clinica` | `id_bloqueo`, `titulo`, `motivo`, `fecha_inicio`, `fecha_fin`, `aplica_a_todos`, `id_medico`, `estado` |
-| `suspensiones_horario` | `id_suspension`, `id_medico`, `fecha_inicio`, `fecha_fin`, `motivo` |
-| `estados_cita` | `id_estado_cita`, `nombre`, `codigo`, `ocupa_turno` (1: `programada`, 2: `confirmada`, 3: `en_espera`, 4: `atendida`, 5: `cancelada`, 6: `inasistencia`, 7: `postergada`) |
-| `citas` | `id_cita`, `codigo_cita`, `id_paciente`, `id_medico`, `id_especialidad`, `id_estado_cita`, `fecha_cita`, `hora_inicio`, `hora_fin`, `motivo_consulta`, `observaciones`, `creado_por_usuario`, `id_pago`, `pago_confirmado`, `estado` |
-| `pagos_cita` | `id_pago`, `id_cita`, `monto`, `metodo_pago`, `nro_transaccion`, `estado_pago` (`completado`, `reembolsado`, `retenido`), `detalles_pasarela`, `fecha_pago`, `fecha_reembolso` |
-| `parametros_sistema` | `clave`, `valor`, `descripcion` (`HORAS_ANTICIPACION_CANCELAR = '12'`, `MONTO_FIJO_RESERVA_CITA = '50.00'`) |
-| `bitacora_auditoria` | `id_bitacora`, `id_usuario`, `modulo`, `accion`, `tabla_afectada`, `id_registro_afectado`, `valores_anteriores`, `valores_nuevos`, `ip_origen`, `created_at` |
+| `roles` | `id_rol`, `nombre`, `descripcion`, `timestamps` (`administrador`, `medico`, `recepcionista`, `paciente`) |
+| `personas` | `id_persona`, `ci`, `nombres`, `apellidos`, `fecha_nacimiento`, `sexo`, `telefono`, `correo`, `direccion`, `timestamps` |
+| `usuarios` | `id_usuario`, `id_persona`, `id_rol`, `nombre_usuario`, `correo`, `contrasena_hash`, `token_sesion`, `debe_cambiar_contrasena`, `estado`, `ultimo_acceso`, `timestamps` |
+| `permisos` | `id_permiso`, `modulo`, `nombre`, `slug`, `descripcion`, `timestamps` |
+| `rol_permiso` | `id_rol`, `id_permiso`, `timestamps` (Matriz M:N de privilegios granulares) |
+| `pacientes` | `id_paciente`, `id_persona`, `codigo_historia`, `grupo_sanguineo`, `estado`, `timestamps` |
+| `informacion_medica_paciente` | `id_informacion_medica`, `id_paciente`, `alergias`, `enfermedades_cronicas`, `medicamentos_actuales`, `antecedentes_familiares`, `observaciones`, `timestamps` |
+| `contactos_emergencia` | `id_contacto_emergencia`, `id_paciente`, `nombre_completo`, `relacion`, `telefono`, `direccion`, `es_principal`, `timestamps` |
+| `medicos` | `id_medico`, `id_persona`, `nro_matricula`, `biografia`, `estado`, `timestamps` |
+| `especialidades` | `id_especialidad`, `nombre`, `nombre_normalizado`, `descripcion`, `duracion_turno_minutos`, `reservable_en_linea`, `estado`, `timestamps` |
+| `medico_especialidad` | `id_medico_especialidad`, `id_medico`, `id_especialidad`, `timestamps` (Relación M:N) |
+| `horarios_atencion` | `id_horario`, `id_medico`, `id_especialidad`, `dia_semana`, `hora_inicio`, `hora_fin`, `duracion_intervalo_minutos`, `estado`, `timestamps` |
+| `bloqueos_clinica` | `id_bloqueo`, `titulo`, `motivo`, `fecha_inicio`, `fecha_fin`, `aplica_a_todos`, `id_medico`, `estado`, `timestamps` |
+| `suspensiones_horario` | `id_suspension`, `id_medico`, `fecha_inicio`, `fecha_fin`, `motivo`, `estado_citas_accion`, `timestamps` |
+| `estados_cita` | `id_estado_cita`, `codigo`, `nombre`, `descripcion`, `timestamps` (8 estados: `pendiente`, `confirmada`, `en_espera`, `atendida`, `cancelada`, `inasistencia`, `reprogramada`, `postergada`) |
+| `citas` | `id_cita`, `codigo_cita`, `id_paciente`, `id_medico`, `id_especialidad`, `id_estado_cita`, `fecha_cita`, `hora_inicio`, `hora_fin`, `motivo_consulta`, `observaciones`, `es_postergada`, `fecha_expiracion_reserva`, `creado_por_usuario`, `id_pago`, `pago_confirmado`, `estado`, `timestamps` |
+| `pagos_cita` | `id_pago`, `id_cita`, `monto`, `metodo_pago`, `nro_transaccion`, `estado_pago` (`completado`, `reembolsado`, `retenido`), `detalles_pasarela`, `fecha_pago`, `fecha_reembolso`, `timestamps` |
+| `notificaciones` | `id_notificacion`, `id_usuario`, `tipo`, `titulo`, `mensaje`, `leido`, `fecha_leido`, `metadata`, `timestamps` |
+| `atenciones_clinicas` | `id_atencion`, `id_cita`, `id_paciente`, `id_medico`, `motivo_atencion`, `examen_fisico`, `diagnostico`, `tratamiento_indicaciones`, `receta_medica`, `fecha_atencion`, `timestamps` |
+| `resultados_laboratorio` | `id_resultado`, `id_paciente`, `id_atencion`, `tipo_estudio`, `descripcion`, `archivo_adjunto`, `fecha_estudio`, `timestamps` |
+| `bitacora_auditoria` | `id_bitacora`, `id_usuario`, `caso_uso`, `accion`, `tabla_afectada`, `registro_id`, `datos_anteriores`, `datos_nuevos`, `ip_origen`, `user_agent`, `fecha_hora`, `timestamps` |
+| `copias_seguridad` | `id_copia`, `id_usuario`, `nombre_archivo`, `ruta_almacenamiento`, `tamano_bytes`, `tipo`, `estado`, `timestamps` |
+| `parametros_sistema` | `id_parametro`, `clave`, `valor`, `descripcion`, `tipo_dato`, `timestamps` (`HORAS_ANTICIPACION_CANCELAR = '12'`, `MONTO_FIJO_RESERVA_CITA = '50.00'`, `HORAS_VENTANA_POSTERGADAS = '48'`, `MINUTOS_DURACION_TURNO = '15'`) |
 
 ---
 
@@ -376,6 +380,48 @@ GestionarPacientesControlador --> PaginaGestionPacientes.jsx: RespuestaApi::exit
                                        ┌────────────────────────────────┘           │ 9: insert()
                                        ▼                                            ▼
                                   [:DB / PostgreSQL] ───────────────────────► [:bitacora_auditoria]
+```
+
+---
+
+#### [CU-06] Gestionar Mi Perfil
+* **Actores:** `Paciente` (Autoservicio Web).
+* **Objetivo:** Consultar y actualizar datos personales de contacto, información clínica declarada (alergias, patologías crónicas, medicamentos, antecedentes familiares) y contacto de emergencia con extracción exclusiva de identidad desde el token criptográfico de sesión (Anti-IDOR / RN19).
+
+##### 1. Análisis de Clases (BCE)
+* **Frontera (Boundary):**
+  - `frontend/src/Paquetes/PacientesPerfil/CU06_GestionarMiPerfil/PaginaMiPerfil.jsx`
+  - `frontend/src/Paquetes/PacientesPerfil/CU06_GestionarMiPerfil/MiPerfil.jsx`
+* **Control:**
+  - `app/Http/Controllers/Paquetes/PacientesPerfil/CU06_GestionarMiPerfil/GestionarMiPerfilControlador.php`
+  - `app/Http/Requests/Paquetes/PacientesPerfil/CU06_GestionarMiPerfil/ActualizarPerfilRequest.php`
+  - `app/Paquetes/PacientesPerfil/CU06_GestionarMiPerfil/GestionarMiPerfilServicio.php`
+  - `app/Nucleo/Bitacora/ServicioBitacora.php`
+* **Entidad (Entity):**
+  - Tablas: `personas`, `pacientes`, `informacion_medica_paciente`, `contactos_emergencia`, `bitacora_auditoria`.
+
+##### 2. Diagrama de Secuencia
+```text
+Actor -> PaginaMiPerfil.jsx: useEffect() -> api.get('/perfil/mi-perfil')
+PaginaMiPerfil.jsx -> GestionarMiPerfilControlador: show(Request $request)
+GestionarMiPerfilControlador -> GestionarMiPerfilServicio: obtenerPerfil($usuario->id_persona, $usuario->id_paciente)
+GestionarMiPerfilServicio -> DB: table('personas')->join('pacientes')->where(...)->first()
+GestionarMiPerfilServicio -> DB: table('informacion_medica_paciente')->where('id_paciente', ...)->first()
+GestionarMiPerfilServicio -> DB: table('contactos_emergencia')->where('id_paciente', ...)->first()
+GestionarMiPerfilServicio --> GestionarMiPerfilControlador: array $perfilCompleto
+GestionarMiPerfilControlador --> PaginaMiPerfil.jsx: RespuestaApi::exito($perfilCompleto)
+
+== Actualización de Perfil ==
+Actor -> MiPerfil.jsx: submit(contacto, info_medica, contacto_emergencia)
+MiPerfil.jsx -> GestionarMiPerfilControlador: update(ActualizarPerfilRequest $request)
+GestionarMiPerfilControlador -> GestionarMiPerfilServicio: actualizarPerfil($idPersona, $idPaciente, $datosValidados, $idUsuario)
+GestionarMiPerfilServicio -> DB: transaction(...)
+GestionarMiPerfilServicio -> DB: table('personas')->where('id_persona', $idPersona)->update(['telefono', 'correo', 'direccion'])
+GestionarMiPerfilServicio -> DB: table('informacion_medica_paciente')->updateOrInsert(['id_paciente' => $idPaciente], [...])
+GestionarMiPerfilServicio -> DB: table('contactos_emergencia')->updateOrInsert(['id_paciente' => $idPaciente], [...])
+GestionarMiPerfilServicio -> ServicioBitacora: registrar('CU06_GestionarMiPerfil', 'ACTUALIZAR_PERFIL', 'pacientes', ...)
+GestionarMiPerfilServicio --> GestionarMiPerfilControlador: array $perfilActualizado
+GestionarMiPerfilControlador --> MiPerfil.jsx: RespuestaApi::exito($perfilActualizado, 'Perfil actualizado correctamente')
 ```
 
 ---
@@ -997,14 +1043,27 @@ end
 | **CU-03** | `AccesoCuentas` | `PaginaRegistroPaciente.jsx` | `RegistrarsePacienteControlador`, `RegistrarsePacienteRequest`, `RegistrarsePacienteServicio` | `personas`, `usuarios`, `pacientes`, `bitacora_auditoria` |
 | **CU-04** | `AccesoCuentas` | `PaginaUsuariosRoles.jsx` | `AdministrarUsuariosRolesControlador`, `GuardarUsuarioRequest`, `AdministrarUsuariosRolesServicio` | `usuarios`, `personas`, `roles`, `permisos`, `rol_permiso` |
 | **CU-05** | `PacientesPerfil` | `PaginaGestionPacientes.jsx`, `TablaExpandible.jsx` | `GestionarPacientesControlador`, `GuardarPacienteRequest`, `GestionarPacientesServicio` | `pacientes`, `personas`, `contactos_emergencia`, `bitacora_auditoria` |
+| **CU-06** | `PacientesPerfil` | `PaginaMiPerfil.jsx`, `MiPerfil.jsx` | `GestionarMiPerfilControlador`, `ActualizarPerfilRequest`, `GestionarMiPerfilServicio` | `personas`, `pacientes`, `informacion_medica_paciente`, `contactos_emergencia`, `bitacora_auditoria` |
 | **CU-07** | `CatalogosHorarios` | `PaginaEspecialidades.jsx` | `GestionarEspecialidadesControlador`, `GuardarEspecialidadRequest`, `GestionarEspecialidadesServicio` | `especialidades`, `medico_especialidad`, `citas` |
 | **CU-08** | `CatalogosHorarios` | `PaginaMedicos.jsx` | `GestionarMedicosControlador`, `GuardarMedicoRequest`, `GestionarMedicosServicio` | `medicos`, `personas`, `medico_especialidad`, `especialidades` |
 | **CU-09** | `CatalogosHorarios` | `PaginaHorarios.jsx`, `ModalHorario.jsx` | `GestionarHorariosAtencionControlador`, `GuardarHorarioRequest`, `GestionarHorariosAtencionServicio` | `horarios_atencion`, `medicos`, `especialidades` |
 | **CU-10** | `CatalogosHorarios` | `SelectorDisponibilidadTurnos.jsx`, `PaginaReservaCitas.jsx` | `ConsultarDisponibilidadControlador`, `ConsultarDisponibilidadRequest`, `ConsultarDisponibilidadServicio` | `horarios_atencion`, `citas`, `bloqueos_clinica`, `suspensiones_horario` |
+| **CU-11** | `CatalogosHorarios` | `PaginaSuspensiones.jsx`, `ModalNuevaSuspension.jsx`, `ModalReubicarCita.jsx` | `SuspenderHorarioControlador`, `SuspenderHorarioRequest`, `ReubicarCitaPostergadaRequest`, `SuspenderHorarioServicio` | `suspensiones_horario`, `citas`, `notificaciones`, `medicos`, `bitacora_auditoria` |
 | **CU-12** | `CitasNotificaciones` | `PaginaReservaCitas.jsx`, `TablaExpandible.jsx` | `GestionarCitasControlador`, `CrearCitaRequest`, `ReprogramarCitaRequest`, `GestionarCitasServicio` | `citas`, `estados_cita`, `pagos_cita`, `parametros_sistema` |
 | **CU-13** | `CitasNotificaciones` | `PaginaAgendaCitas.jsx`, modal de corrección RN16 | `RegistrarAsistenciaControlador`, `RegistrarAsistenciaRequest`, `RegistrarAsistenciaServicio` | `citas`, `estados_cita`, `pagos_cita`, `bitacora_auditoria` |
 | **CU-14** | `CitasNotificaciones` | `PaginaAgendaCitas.jsx`, `TablaExpandible.jsx` | `ConsultarAgendaCitasControlador`, `ConsultarAgendaCitasServicio` | `citas`, `medicos`, `pacientes`, `especialidades`, `estados_cita` |
 | **CU-15** | `CitasNotificaciones` | `PaginaHistorialCitas.jsx`, `TablaExpandible.jsx`, `InsigniaEstadoPago.jsx` | `HistorialSeguimientoCitasControlador`, `HistorialSeguimientoCitasServicio` | `citas`, `pagos_cita`, `estados_cita`, `especialidades`, `medicos` |
+| **CU-16** | `CitasNotificaciones` | `CampanaNotificaciones.jsx`, `HeaderSuperior.jsx` | `EnviarNotificacionesControlador`, `EnviarNotificacionesServicio` | `notificaciones`, `citas`, `pacientes`, `usuarios` |
+| **CU-17** | `HistoriaClinica` | `PaginaKardexPacientes.jsx`, `TablaExpandible.jsx` | `ConsultarMisPacientesControlador`, `ConsultarMisPacientesServicio` | `pacientes`, `personas`, `citas`, `atenciones_clinicas`, `informacion_medica_paciente` |
+| **CU-18** | `HistoriaClinica` | `FormularioAtencionClinica.jsx` | `RegistrarAtencionClinicaControlador`, `RegistrarAtencionRequest`, `RegistrarAtencionServicio` | `atenciones_clinicas`, `citas`, `recetas_medicas`, `bitacora_auditoria` |
+| **CU-19** | `HistoriaClinica` | `ModalResultadosLab.jsx` | `ResultadosLaboratorioControlador`, `RegistrarLaboratorioRequest`, `ResultadosLaboratorioServicio` | `resultados_laboratorio`, `pacientes`, `bitacora_auditoria` |
+| **CU-20** | `HistoriaClinica` | `PaginaHistorialClinico.jsx`, `TablaExpandible.jsx` | `ConsultarHistorialClinicoControlador`, `ConsultarHistorialClinicoServicio` | `pacientes`, `personas`, `atenciones_clinicas`, `resultados_laboratorio`, `citas` |
+| **CU-21** | `Reportes` | `PaginaReportes.jsx` | `ReportesCitasControlador`, `ReportesCitasServicio` | `citas`, `especialidades`, `medicos`, `estados_cita` |
+| **CU-22** | `Reportes` | `PaginaReportes.jsx` | `ReporteAsistenciaControlador`, `ReporteAsistenciaServicio` | `citas`, `pacientes`, `personas`, `estados_cita` |
+| **CU-23** | `Reportes` | `PaginaReportes.jsx` | `ExportarReportesControlador`, `ExportarReportesServicio` | `citas`, `pacientes`, `estados_cita` |
+| **CU-24** | `Reportes` | `PaginaAuditoria.jsx`, `PaginaBitacora.jsx` | `ConsultarBitacoraControlador`, `ConsultarBitacoraServicio` | `bitacora_auditoria`, `usuarios` |
+| **CU-25** | `Reportes` | `PaginaDashboard.jsx` | `DashboardAdministrativoControlador`, `DashboardAdministrativoServicio` | `citas`, `pacientes`, `medicos`, `bitacora_auditoria` |
+| **CU-26** | `AccesoCuentas` | `PaginaCopiasSeguridad.jsx` | `GenerarRestaurarCopiasSeguridadControlador`, `GenerarRestaurarCopiasSeguridadServicio` | `copias_seguridad`, `usuarios`, `bitacora_auditoria` |
 | **CU-27** | `CitasNotificaciones` | `ModalPasarelaPagoSimulada.jsx`, `ComprobanteDigitalTransaccion.jsx`, `InsigniaEstadoPago.jsx` | `GestionarPagosReembolsosControlador`, `ProcesarPagoRequest`, `GestionarPagosReembolsosServicio` | `pagos_cita`, `citas`, `parametros_sistema`, `bitacora_auditoria` |
 
 ---
@@ -1012,9 +1071,9 @@ end
 ## 5. Instrucciones de Despliegue y Ejecución Local
 
 ### Prerrequisitos
-* PHP $\ge 8.2$ con extensiones `pdo_pgsql`, `pgsql`, `mbstring`, `openssl`.
+* PHP $\ge 8.3$ con extensiones `pdo_pgsql`, `pgsql`, `mbstring`, `openssl`.
 * Node.js $\ge 20$ y `npm`.
-* PostgreSQL $\ge 16$ en ejecución con la base de datos `clinica` configurada.
+* PostgreSQL 18 (o $\ge 16$) en ejecución con la base de datos `clinica` configurada.
 
 ### Arranque del Backend (Laravel)
 ```bash

@@ -9,17 +9,17 @@ class ConsultarDisponibilidadServicio
 {
     /**
      * Consulta y calcula los turnos disponibles para un médico en una fecha y especialidad.
-     * Aplica RN06 (Fecha no pasada), RN18 (Canal reserva web), RN20 (Bloqueos) y cruce preciso con estados_cita.
+     * Aplica RN06 (Fecha no pasada), RN18 (Canal reserva web), RN20 (Bloqueos) y cruce preciso con estados_cita y suspensiones (CU-11).
      */
     public function consultar(int $idMedico, int $idEspecialidad, string $fecha, ?string $rolUsuario = null): array
     {
-        // 1. Validación de fecha futura o presente
+        // 1. Validación de fecha futura o presente (RN06)
         $hoy = date('Y-m-d');
         if ($fecha < $hoy) {
             throw new \Exception('No se puede consultar disponibilidad en fechas pasadas.', 422);
         }
 
-        // 2. Canal de reserva web
+        // 2. Canal de reserva web (RN18)
         if ($rolUsuario === 'paciente') {
             $especialidad = DB::table('especialidades')->where('id_especialidad', $idEspecialidad)->first();
             if ($especialidad && isset($especialidad->reservable_en_linea) && $especialidad->reservable_en_linea === false) {
@@ -31,7 +31,7 @@ class ConsultarDisponibilidadServicio
         // Carbon isoFormat('E') returns 1 for Monday to 7 for Sunday
         $diaSemana = (int)$carbonFecha->dayOfWeekIso;
 
-        // 3. Regla RN20: Verificar bloqueos de clínica en esa fecha
+        // 3. Regla RN20: Verificar bloqueos institucionales de la clínica en esa fecha
         $bloqueoClinica = DB::table('bloqueos_clinica')
             ->where('estado', 'activo')
             ->where(function ($q) use ($idMedico) {
@@ -50,17 +50,24 @@ class ConsultarDisponibilidadServicio
             ];
         }
 
-        // 4. Verificar suspensiones del médico
-        $suspension = DB::table('suspensiones_horario')
+        // 4. Verificar suspensiones del médico (CU-11)
+        $suspensiones = DB::table('suspensiones_horario')
             ->where('id_medico', $idMedico)
             ->where('fecha_inicio', '<=', $carbonFecha->endOfDay())
             ->where('fecha_fin', '>=', $carbonFecha->startOfDay())
-            ->first();
+            ->get();
 
-        if ($suspension) {
+        // Si existe una suspensión que cubre toda la jornada completa
+        $suspensionCompleta = $suspensiones->first(function ($s) use ($carbonFecha) {
+            $sIni = Carbon::parse($s->fecha_inicio);
+            $sFin = Carbon::parse($s->fecha_fin);
+            return $sIni->lte($carbonFecha->copy()->startOfDay()) && $sFin->gte($carbonFecha->copy()->endOfDay());
+        });
+
+        if ($suspensionCompleta) {
             return [
                 'disponible' => false,
-                'motivo_bloqueo' => 'El médico cuenta con una suspensión de actividades: ' . $suspension->motivo,
+                'motivo_bloqueo' => 'El médico cuenta con una suspensión de actividades para toda la fecha: ' . $suspensionCompleta->motivo,
                 'turnos' => []
             ];
         }
@@ -82,13 +89,13 @@ class ConsultarDisponibilidadServicio
         }
 
         // 6. Cruce Preciso con Estados de Cita (estados_cita)
-        // Se seleccionan citas que ocupan turno (excluyendo canceladas para liberar cupos de inmediato)
+        // Se seleccionan citas que ocupan turno (excluyendo canceladas y postergadas)
         $citasAgendadas = DB::table('citas')
             ->join('estados_cita', 'citas.id_estado_cita', '=', 'estados_cita.id_estado_cita')
             ->where('citas.id_medico', $idMedico)
             ->where('citas.fecha_cita', $fecha)
             ->where('citas.estado', '!=', 'cancelada')
-            ->whereRaw("LOWER(estados_cita.nombre) NOT IN ('cancelada', 'cancelado')")
+            ->whereNotIn('citas.id_estado_cita', [5, 6, 8]) // Cancelada (5), inasistencia (6), postergada (8) no ocupan el turno
             ->select('citas.hora_inicio', 'citas.hora_fin', 'citas.codigo_cita', 'citas.es_postergada', 'estados_cita.nombre as estado_nombre')
             ->get()
             ->keyBy(fn ($item) => substr($item->hora_inicio, 0, 5));
@@ -102,16 +109,34 @@ class ConsultarDisponibilidadServicio
 
             while ($inicio->copy()->addMinutes($intervalo)->lte($fin)) {
                 $horaSlot = $inicio->format('H:i');
-                $horaFinSlot = $inicio->copy()->addMinutes($intervalo)->format('H:i');
+                $slotFin = $inicio->copy()->addMinutes($intervalo);
+                $horaFinSlot = $slotFin->format('H:i');
 
-                $ocupado = $citasAgendadas->has($horaSlot);
+                // Verificar si este turno puntual cae dentro de alguna suspensión del médico
+                $enSuspension = $suspensiones->first(function ($s) use ($inicio, $slotFin) {
+                    $sIni = Carbon::parse($s->fecha_inicio);
+                    $sFin = Carbon::parse($s->fecha_fin);
+                    return $inicio->lt($sFin) && $slotFin->gt($sIni);
+                });
 
-                $turnos[] = [
-                    'hora_inicio' => $horaSlot,
-                    'hora_fin' => $horaFinSlot,
-                    'disponible' => !$ocupado,
-                    'estado_turno' => $ocupado ? 'ocupado' : 'libre',
-                ];
+                if ($enSuspension) {
+                    $turnos[] = [
+                        'hora_inicio' => $horaSlot,
+                        'hora_fin' => $horaFinSlot,
+                        'disponible' => false,
+                        'estado_turno' => 'bloqueado',
+                        'motivo' => 'Suspensión médica: ' . $enSuspension->motivo,
+                    ];
+                } else {
+                    $ocupado = $citasAgendadas->has($horaSlot);
+
+                    $turnos[] = [
+                        'hora_inicio' => $horaSlot,
+                        'hora_fin' => $horaFinSlot,
+                        'disponible' => !$ocupado,
+                        'estado_turno' => $ocupado ? 'ocupado' : 'libre',
+                    ];
+                }
 
                 $inicio->addMinutes($intervalo);
             }
