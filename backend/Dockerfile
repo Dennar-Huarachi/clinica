@@ -14,4 +14,4 @@ COPY . .
 RUN composer install --optimize-autoloader --no-dev
 
 # Levantar el servidor
-CMD php artisan serve --host=0.0.0.0 --port=$PORT
+CMD php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT
