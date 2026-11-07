@@ -275,7 +275,7 @@ export default function PaginaAuditoria() {
                   <span className="audi-modulo">{humanizarCasoUso(r.caso_uso)}</span>
                 </td>
                 <td>
-                  <span className="audi-ip">🌐 {r.ip_origen || '127.0.0.1'}</span>
+                  <span className="audi-ip">🌐 {r.ip_origen || 'Local'}</span>
                 </td>
                 <td className="col-flecha">
                   <span className={`flecha-desplegar ${isExpanded ? 'rotada' : ''}`}>▼</span>
@@ -295,7 +295,7 @@ export default function PaginaAuditoria() {
                 </div>
                 <div className="audi-movil-bot">
                   <span>📅 {r.fecha_hora}</span>
-                  <span>🌐 {r.ip_origen || '127.0.0.1'}</span>
+                  <span>🌐 {r.ip_origen || 'Local'}</span>
                 </div>
               </div>
             )}
