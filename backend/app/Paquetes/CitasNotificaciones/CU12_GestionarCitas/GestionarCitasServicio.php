@@ -4,6 +4,7 @@ namespace App\Paquetes\CitasNotificaciones\CU12_GestionarCitas;
 
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Models\Cita;
 use App\Nucleo\Bitacora\ServicioBitacora;
 use App\Paquetes\CitasNotificaciones\CU27_GestionarPagosReembolsos\GestionarPagosReembolsosServicio;
 
@@ -35,17 +36,8 @@ class GestionarCitasServicio
             $horaFinStr = $horaFin->format('H:i');
 
             // 2. Control de concurrencia: Bloquear consultas activas del médico para esta fecha
-            // Previene condición de carrera (race conditions) entre dos usuarios intentando el mismo turno al mismo segundo
-            $solapamiento = DB::table('citas')
-                ->where('id_medico', $idMedico)
-                ->where('fecha_cita', $fecha)
-                ->where('estado', '!=', 'cancelada')
-                ->where(function ($q) use ($horaInicioStr, $horaFinStr) {
-                    $q->where(function ($inner) use ($horaInicioStr, $horaFinStr) {
-                        $inner->where('hora_inicio', '<', $horaFinStr)
-                              ->where('hora_fin', '>', $horaInicioStr);
-                    });
-                })
+            // Previene condición de carrera (race conditions) usando la regla unificada de ocupación (Cita::querySolapamiento)
+            $solapamiento = Cita::querySolapamiento($idMedico, $fecha, $horaInicioStr, $horaFinStr)
                 ->lockForUpdate()
                 ->first();
 
@@ -117,6 +109,7 @@ class GestionarCitasServicio
             $idPago = $resultadoPago['id_pago'];
             $nroTransaccion = $resultadoPago['nro_transaccion'];
             $montoReserva = $resultadoPago['monto'];
+            $metodoPago = $resultadoPago['metodo_pago'] ?? ($datos['metodo_pago'] ?? 'qr_transferencia');
 
             // Registrar notificación para el paciente
             $usuarioPaciente = DB::table('pacientes')
@@ -155,6 +148,7 @@ class GestionarCitasServicio
                     'id_pago' => $idPago,
                     'monto' => $montoReserva,
                     'nro_transaccion' => $nroTransaccion,
+                    'metodo_pago' => $metodoPago,
                 ],
                 $idUsuarioOperador
             );
@@ -168,7 +162,7 @@ class GestionarCitasServicio
                 'id_pago' => $idPago,
                 'monto_reserva' => $montoReserva,
                 'nro_transaccion' => $nroTransaccion,
-                'metodo_pago' => $metodo,
+                'metodo_pago' => $metodoPago,
                 'estado_pago' => 'completado',
             ];
         });
@@ -210,16 +204,8 @@ class GestionarCitasServicio
             $horaFin = $horaInicio->copy()->addMinutes($duracion);
             $horaFinStr = $horaFin->format('H:i');
 
-            // Verificar solapamiento
-            $solapamiento = DB::table('citas')
-                ->where('id_medico', $cita->id_medico)
-                ->where('fecha_cita', $fecha)
-                ->where('id_cita', '!=', $idCita)
-                ->where('estado', '!=', 'cancelada')
-                ->where(function ($q) use ($horaInicioStr, $horaFinStr) {
-                    $q->where('hora_inicio', '<', $horaFinStr)
-                      ->where('hora_fin', '>', $horaInicioStr);
-                })
+            // Verificar solapamiento usando la regla unificada de ocupación (Cita::querySolapamiento)
+            $solapamiento = Cita::querySolapamiento($cita->id_medico, $fecha, $horaInicioStr, $horaFinStr, $idCita)
                 ->lockForUpdate()
                 ->first();
 
@@ -227,9 +213,9 @@ class GestionarCitasServicio
                 throw new \Exception("El nuevo turno seleccionado ({$horaInicioStr} - {$horaFinStr}) ya está ocupado.", 409);
             }
 
-            // Estado reprogramada (id=7)
+            // Estado reprogramada (id=8 en catálogo)
             $estadoReprogramada = DB::table('estados_cita')->where('codigo', 'reprogramada')->first();
-            $idEstado = $estadoReprogramada ? $estadoReprogramada->id_estado_cita : 7;
+            $idEstado = $estadoReprogramada ? $estadoReprogramada->id_estado_cita : 8;
 
             $obs = trim(($cita->observaciones ?? '') . " [Reprogramada del {$cita->fecha_cita} {$cita->hora_inicio} a {$fecha} {$horaInicioStr}: " . ($datos['motivo_reprogramacion'] ?? 'Solicitud') . "]");
 

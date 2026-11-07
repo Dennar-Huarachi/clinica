@@ -270,6 +270,15 @@ export function resolverTituloRuta(pathname) {
   }
 
   // Rutas dinámicas
+  if (pathname.startsWith('/medico/pacientes/')) {
+    return 'Expediente Clínico del Paciente';
+  }
+  if (pathname.startsWith('/medico/atenciones/')) {
+    return 'Expediente Clínico del Paciente';
+  }
+  if (pathname.startsWith('/medico/laboratorio/')) {
+    return 'Laboratorio del Paciente';
+  }
   if (pathname.startsWith('/historia-clinica/atencion/')) {
     return 'Registro de Atención Clínica';
   }

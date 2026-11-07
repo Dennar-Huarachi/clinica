@@ -126,6 +126,14 @@ export default function App() {
           }
         />
         <Route
+          path="/medico/pacientes/:idPaciente"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['medico', 'administrador']}>
+              <PaginaHistorialClinico />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
           path="/medico/atenciones"
           element={
             <RutaProtegidaPorRol rolesPermitidos={['medico']}>
@@ -134,9 +142,25 @@ export default function App() {
           }
         />
         <Route
+          path="/medico/atenciones/:idPaciente"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['medico', 'administrador']}>
+              <PaginaHistorialClinico />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
           path="/medico/laboratorio"
           element={
             <RutaProtegidaPorRol rolesPermitidos={['medico']}>
+              <PaginaHistorialClinico />
+            </RutaProtegidaPorRol>
+          }
+        />
+        <Route
+          path="/medico/laboratorio/:idPaciente"
+          element={
+            <RutaProtegidaPorRol rolesPermitidos={['medico', 'administrador']}>
               <PaginaHistorialClinico />
             </RutaProtegidaPorRol>
           }

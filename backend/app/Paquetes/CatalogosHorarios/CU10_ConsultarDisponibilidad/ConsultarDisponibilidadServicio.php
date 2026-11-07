@@ -4,6 +4,7 @@ namespace App\Paquetes\CatalogosHorarios\CU10_ConsultarDisponibilidad;
 
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Models\Cita;
 
 class ConsultarDisponibilidadServicio
 {
@@ -89,16 +90,17 @@ class ConsultarDisponibilidadServicio
         }
 
         // 6. Cruce Preciso con Estados de Cita (estados_cita)
-        // Se seleccionan citas que ocupan turno (excluyendo canceladas y postergadas)
-        $citasAgendadas = DB::table('citas')
-            ->join('estados_cita', 'citas.id_estado_cita', '=', 'estados_cita.id_estado_cita')
+        // Se seleccionan citas que ocupan turno según la regla única centralizada (Cita::ESTADOS_OCUPANTES)
+        $citasAgendadasQuery = DB::table('citas')
+            ->leftJoin('estados_cita', 'citas.id_estado_cita', '=', 'estados_cita.id_estado_cita')
             ->where('citas.id_medico', $idMedico)
-            ->where('citas.fecha_cita', $fecha)
-            ->where('citas.estado', '!=', 'cancelada')
-            ->whereNotIn('citas.id_estado_cita', [5, 6, 8]) // Cancelada (5), inasistencia (6), postergada (8) no ocupan el turno
-            ->select('citas.hora_inicio', 'citas.hora_fin', 'citas.codigo_cita', 'citas.es_postergada', 'estados_cita.nombre as estado_nombre')
-            ->get()
-            ->keyBy(fn ($item) => substr($item->hora_inicio, 0, 5));
+            ->where('citas.fecha_cita', $fecha);
+
+        Cita::aplicarFiltroOcupantes($citasAgendadasQuery, 'citas');
+
+        $citasAgendadas = $citasAgendadasQuery
+            ->select('citas.hora_inicio', 'citas.hora_fin', 'citas.codigo_cita', 'citas.es_postergada', 'estados_cita.codigo as estado_codigo', 'estados_cita.nombre as estado_nombre')
+            ->get();
 
         $turnos = [];
 
@@ -128,7 +130,32 @@ class ConsultarDisponibilidadServicio
                         'motivo' => 'Suspensión médica: ' . $enSuspension->motivo,
                     ];
                 } else {
-                    $ocupado = $citasAgendadas->has($horaSlot);
+                    $ocupado = $citasAgendadas->contains(function ($cita) use ($fecha, $inicio, $slotFin, $horaSlot) {
+                        $citaHoraIni = substr(trim($cita->hora_inicio), 0, 5);
+                        if (preg_match('/^(\d):(\d{2})$/', $citaHoraIni, $m)) {
+                            $citaHoraIni = '0' . $m[1] . ':' . $m[2];
+                        }
+
+                        // Coincidencia exacta con la hora de inicio del intervalo
+                        if ($citaHoraIni === $horaSlot) {
+                            return true;
+                        }
+
+                        // Coincidencia por solapamiento de rango [hora_inicio, hora_fin)
+                        if (!empty($cita->hora_fin)) {
+                            $citaHoraFin = substr(trim($cita->hora_fin), 0, 5);
+                            if (preg_match('/^(\d):(\d{2})$/', $citaHoraFin, $m)) {
+                                $citaHoraFin = '0' . $m[1] . ':' . $m[2];
+                            }
+
+                            $cIni = Carbon::parse($fecha . ' ' . $citaHoraIni);
+                            $cFin = Carbon::parse($fecha . ' ' . $citaHoraFin);
+
+                            return $cIni->lt($slotFin) && $cFin->gt($inicio);
+                        }
+
+                        return false;
+                    });
 
                     $turnos[] = [
                         'hora_inicio' => $horaSlot,

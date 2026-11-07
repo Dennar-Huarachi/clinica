@@ -6,6 +6,20 @@ use App\Nucleo\Validaciones\FormRequestPersonalizado;
 
 class ProcesarPagoRequest extends FormRequestPersonalizado
 {
+    protected function prepareForValidation(): void
+    {
+        parent::prepareForValidation();
+
+        if ($this->has('metodo_pago')) {
+            $metodo = strtolower(trim((string)$this->metodo_pago));
+            if (in_array($metodo, ['qr', 'qr_transferencia', 'simple qr', 'simple_qr', 'transferencia'])) {
+                $this->merge(['metodo_pago' => 'qr_transferencia']);
+            } elseif (in_array($metodo, ['tarjeta', 'tarjeta_debito_credito', 'debito', 'credito', 'card'])) {
+                $this->merge(['metodo_pago' => 'tarjeta_debito_credito']);
+            }
+        }
+    }
+
     public function rules(): array
     {
         return [

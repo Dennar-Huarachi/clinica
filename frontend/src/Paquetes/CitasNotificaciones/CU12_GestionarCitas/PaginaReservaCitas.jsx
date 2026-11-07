@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../../compartido/utilidades/api';
 import CampoTexto from '../../../compartido/componentes/CampoTexto';
-import CampoSelect from '../../../compartido/componentes/CampoSelect';
+import SelectorBuscador from '../../../compartido/componentes/SelectorBuscador';
 import Alerta from '../../../compartido/componentes/Alerta';
 import LayoutPrincipal from '../../../compartido/layouts/LayoutPrincipal';
 import SelectorDisponibilidadTurnos from '../../CatalogosHorarios/CU10_ConsultarDisponibilidad/SelectorDisponibilidadTurnos';
@@ -20,6 +20,8 @@ export default function PaginaReservaCitas() {
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
   const [turnoSeleccionado, setTurnoSeleccionado] = useState(null);
   const [motivoConsulta, setMotivoConsulta] = useState('');
+  const [metodoPago, setMetodoPago] = useState('tarjeta_debito_credito'); // 'tarjeta_debito_credito' | 'qr_transferencia'
+  const [claveRefrescoTurnos, setClaveRefrescoTurnos] = useState(0);
 
   const [errores, setErrores] = useState({});
   const [alerta, setAlerta] = useState(null);
@@ -69,7 +71,23 @@ export default function PaginaReservaCitas() {
     setAlerta(null);
     setErrores({});
 
-    if (!turnoSeleccionado) {
+    const token = localStorage.getItem('token_clinica');
+    if (!token) {
+      setAlerta({ tipo: 'error', mensaje: 'Sesión no detectada o expirada. Por favor inicie sesión nuevamente.' });
+      return;
+    }
+
+    if (!idEspecialidad) {
+      setAlerta({ tipo: 'error', mensaje: 'Debe seleccionar una especialidad médica.' });
+      return;
+    }
+
+    if (!idMedico) {
+      setAlerta({ tipo: 'error', mensaje: 'Debe seleccionar un médico especialista.' });
+      return;
+    }
+
+    if (!turnoSeleccionado || !turnoSeleccionado.hora_inicio) {
       setAlerta({ tipo: 'error', mensaje: 'Debe seleccionar un turno disponible en la lista inferior.' });
       return;
     }
@@ -86,26 +104,74 @@ export default function PaginaReservaCitas() {
   const procesarPagoYConfirmar = async (datosPago) => {
     setEnviando(true);
     setAlerta(null);
+    setErrores({});
 
+    const token = localStorage.getItem('token_clinica');
+    if (!token) {
+      setAlerta({
+        tipo: 'error',
+        mensaje: 'No se detectó un token de autenticación válido (401). Inicie sesión nuevamente.',
+      });
+      setMostrarModalPago(false);
+      setEnviando(false);
+      return;
+    }
+
+    // Normalizar método de pago: NUNCA etiquetas visuales como "Tarjeta" o "Simple QR"
+    let metodoPagoValido = 'tarjeta_debito_credito';
+    const metodoElegido = (datosPago?.metodo_pago || metodoPago || '').toLowerCase().trim();
+    if (metodoElegido.includes('qr') || metodoElegido === 'qr_transferencia') {
+      metodoPagoValido = 'qr_transferencia';
+    } else {
+      metodoPagoValido = 'tarjeta_debito_credito';
+    }
+
+    // Normalizar hora_inicio: asegurar estrictamente formato H:i (e.g. "08:00")
+    let horaInicioLimpia = turnoSeleccionado?.hora_inicio
+      ? String(turnoSeleccionado.hora_inicio).trim()
+      : '';
+    if (horaInicioLimpia.length > 5) {
+      horaInicioLimpia = horaInicioLimpia.slice(0, 5);
+    }
+    if (/^\d:\d{2}$/.test(horaInicioLimpia)) {
+      horaInicioLimpia = '0' + horaInicioLimpia;
+    }
+
+    // Obtener id_paciente numérico
+    const idPacienteVal = esPersonal
+      ? parseInt(idPaciente, 10)
+      : parseInt(usuario?.id_paciente || usuario?.paciente?.id_paciente || usuario?.id_persona || 0, 10);
+
+    // Payload canónico estricto alineado con CrearCitaRequest
     const payload = {
-      id_especialidad: Number(idEspecialidad),
-      id_medico: Number(idMedico),
-      fecha_cita: fecha,
-      hora_inicio: turnoSeleccionado.hora_inicio,
-      motivo_consulta: motivoConsulta,
-      metodo_pago: datosPago.metodo_pago,
-      referencia_simulada: datosPago.referencia_simulada,
-      detalles_pasarela: datosPago.detalles_pasarela,
+      id_medico: parseInt(idMedico, 10),
+      id_especialidad: parseInt(idEspecialidad, 10),
+      fecha_cita: String(fecha).trim(),
+      hora_inicio: horaInicioLimpia,
+      metodo_pago: metodoPagoValido,
+      motivo_consulta: (motivoConsulta || '').trim() || 'Consulta médica general',
+      referencia_simulada: datosPago?.referencia_simulada || (metodoPagoValido === 'qr_transferencia' ? 'QR-BCP-PAGO' : 'CARD-TRANSACCION'),
+      detalles_pasarela: datosPago?.detalles_pasarela || {
+        origen: 'pasarela_web',
+        metodo: metodoPagoValido,
+        banco: metodoPagoValido === 'qr_transferencia' ? 'Simple QR Interoperable' : 'Visa / MasterCard',
+        monto_bs: 50.00,
+      },
     };
 
-    if (esPersonal) {
-      payload.id_paciente = Number(idPaciente);
-    } else {
-      payload.id_paciente = usuario.id_paciente;
+    if (idPacienteVal > 0) {
+      payload.id_paciente = idPacienteVal;
     }
 
     try {
-      const res = await api.post('/citas', payload);
+      // Petición HTTP usando exclusivamente la instancia Axios configurada del proyecto (inyección Bearer)
+      const configPeticion = {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      };
+
+      const res = await api.post('/citas', payload, configPeticion);
       const datosCita = res.data.datos;
 
       setComprobanteExito({
@@ -113,22 +179,47 @@ export default function PaginaReservaCitas() {
         nro_transaccion: datosCita.nro_transaccion,
         monto: datosCita.monto_reserva || 50.00,
         fecha: fecha,
-        hora: turnoSeleccionado.hora_inicio,
+        hora: horaInicioLimpia,
         especialidad: especialidades.find((e) => Number(e.id_especialidad) === Number(idEspecialidad))?.nombre,
         medico: medicos.find((m) => Number(m.id_medico) === Number(idMedico))?.apellidos,
-        metodo_pago: datosPago.metodo_pago === 'qr_transferencia' ? 'Simple QR Interoperable' : 'Tarjeta de Débito/Crédito',
+        metodo_pago: metodoPagoValido === 'qr_transferencia' ? 'Simple QR Interoperable' : 'Tarjeta de Débito/Crédito',
       });
 
       setMostrarModalPago(false);
       setTurnoSeleccionado(null);
       setMotivoConsulta('');
     } catch (err) {
-      if (err.response?.status === 422 && err.response.data?.errores) {
+      const codigoEstado = err.response?.status;
+      const mensajeServidor = err.response?.data?.mensaje || 'No se pudo reservar el turno médico ni procesar el pago.';
+
+      // Caso de conflicto por turno ocupado concurrente (HTTP 409 Conflict)
+      if (codigoEstado === 409 || (codigoEstado === 400 && String(mensajeServidor).toLowerCase().includes('reservado'))) {
+        // a. Limpiar el estado del turno seleccionado (ningún botón naranja)
+        setTurnoSeleccionado(null);
+
+        // b. Volver a consultar de inmediato la disponibilidad para la misma combinación
+        setClaveRefrescoTurnos((prev) => prev + 1);
+
+        // c. Mantener visible la alerta roja con el mensaje del servidor
+        setAlerta({
+          tipo: 'error',
+          mensaje: mensajeServidor,
+        });
+      } else if (codigoEstado === 401) {
+        setAlerta({
+          tipo: 'error',
+          mensaje: 'Sesión no autorizada o expirada (401). Por favor inicie sesión nuevamente.',
+        });
+      } else if (codigoEstado === 422 && err.response?.data?.errores) {
         setErrores(err.response.data.errores);
+        setAlerta({
+          tipo: 'error',
+          mensaje: mensajeServidor,
+        });
       } else {
         setAlerta({
           tipo: 'error',
-          mensaje: err.response?.data?.mensaje || 'No se pudo reservar el turno médico ni procesar el pago.',
+          mensaje: mensajeServidor,
         });
       }
       setMostrarModalPago(false);
@@ -152,22 +243,31 @@ export default function PaginaReservaCitas() {
 
           <form onSubmit={iniciarProcesoReserva}>
             {esPersonal && (
-              <CampoSelect
+              <SelectorBuscador
                 etiqueta="Paciente Destinatario"
                 nombre="id_paciente"
                 valor={idPaciente}
                 alCambiar={(e) => setIdPaciente(e.target.value)}
                 error={errores.id_paciente?.[0] || errores.id_paciente}
-                opciones={pacientes.map((p) => ({
-                  valor: p.id_paciente,
-                  etiqueta: `${p.apellidos}, ${p.nombres} (CI: ${p.ci || 'S/N'} - Hist: ${p.codigo_historia})`,
-                }))}
+                marcador="Buscar paciente por apellidos, nombres, CI o historial..."
+                opciones={pacientes.map((p) => {
+                  const apellidos = p.apellidos || '';
+                  const nombres = p.nombres || '';
+                  const ci = p.ci || '';
+                  const hist = p.codigo_historia || '';
+                  return {
+                    valor: p.id_paciente,
+                    etiqueta: `${apellidos}, ${nombres}`,
+                    subtitulo: `CI: ${ci || 'S/N'} · Historial: ${hist || 'S/N'}`,
+                    busqueda: `${apellidos} ${nombres} ${ci} ${hist}`,
+                  };
+                })}
                 requerido
               />
             )}
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0 1rem' }}>
-              <CampoSelect
+              <SelectorBuscador
                 etiqueta="Especialidad Médica"
                 nombre="id_especialidad"
                 valor={idEspecialidad}
@@ -176,14 +276,16 @@ export default function PaginaReservaCitas() {
                   setTurnoSeleccionado(null);
                 }}
                 error={errores.id_especialidad?.[0] || errores.id_especialidad}
+                marcador="Escriba o busque especialidad (ej. Pediatría)..."
                 opciones={especialidades.map((esp) => ({
                   valor: esp.id_especialidad,
-                  etiqueta: `${esp.nombre} (${esp.duracion_turno_minutos} min)`,
+                  etiqueta: esp.nombre,
+                  busqueda: esp.nombre,
                 }))}
                 requerido
               />
 
-              <CampoSelect
+              <SelectorBuscador
                 etiqueta="Médico Especialista"
                 nombre="id_medico"
                 valor={idMedico}
@@ -192,11 +294,29 @@ export default function PaginaReservaCitas() {
                   setTurnoSeleccionado(null);
                 }}
                 error={errores.id_medico?.[0] || errores.id_medico}
-                opciones={medicos.map((med) => ({
-                  valor: med.id_medico,
-                  etiqueta: `Dr. ${med.apellidos}, ${med.nombres} (Matrícula: ${med.nro_matricula})`,
-                }))}
+                marcador={
+                  !idEspecialidad
+                    ? 'Primero seleccione una especialidad médica'
+                    : 'Buscar por apellido, nombre o matrícula...'
+                }
+                opciones={medicos.map((med) => {
+                  const apellidos = med.apellidos || '';
+                  const nombres = med.nombres || '';
+                  const matricula = med.nro_matricula || '';
+                  const espNombres = (med.especialidades || []).map((e) => e.nombre).join(' ');
+                  return {
+                    valor: med.id_medico,
+                    etiqueta: `Dr. ${apellidos}, ${nombres}`,
+                    subtitulo: matricula ? `Matrícula: ${matricula}` : '',
+                    busqueda: `${apellidos} ${nombres} ${matricula} ${espNombres}`,
+                  };
+                })}
                 deshabilitado={!idEspecialidad}
+                mensajeVacio={
+                  !idEspecialidad
+                    ? 'Primero seleccione una especialidad médica'
+                    : 'No hay médicos disponibles para esta búsqueda'
+                }
                 requerido
               />
             </div>
@@ -221,6 +341,7 @@ export default function PaginaReservaCitas() {
               fecha={fecha}
               onSeleccionarTurno={(turno) => setTurnoSeleccionado(turno)}
               turnoSeleccionado={turnoSeleccionado}
+              claveRefresco={claveRefrescoTurnos}
             />
 
             <CampoTexto
@@ -251,6 +372,8 @@ export default function PaginaReservaCitas() {
           alConfirmarPago={procesarPagoYConfirmar}
           procesando={enviando}
           monto={50.00}
+          metodoPago={metodoPago}
+          setMetodoPago={setMetodoPago}
           detalleTurno={{
             fecha,
             hora: turnoSeleccionado?.hora_inicio,

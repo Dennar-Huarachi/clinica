@@ -3,6 +3,7 @@
 namespace App\Paquetes\CatalogosHorarios\CU07_GestionarEspecialidades;
 
 use Illuminate\Support\Facades\DB;
+use App\Models\Cita;
 use App\Nucleo\Bitacora\ServicioBitacora;
 use App\Http\Requests\Paquetes\CatalogosHorarios\CU07_GestionarEspecialidades\GuardarEspecialidadRequest;
 
@@ -112,13 +113,11 @@ class GestionarEspecialidadesServicio
                 ->count();
 
             $hoy = date('Y-m-d');
-            $citasFuturas = DB::table('citas')
-                ->join('estados_cita', 'estados_cita.id_estado_cita', '=', 'citas.id_estado_cita')
+            $citasFuturasQuery = DB::table('citas')
                 ->where('citas.id_especialidad', $id)
-                ->where('citas.fecha_cita', '>=', $hoy)
-                ->whereIn('estados_cita.codigo', ['programada', 'confirmada', 'pendiente', 'en_espera'])
-                ->where('citas.estado', 'activo')
-                ->count();
+                ->where('citas.fecha_cita', '>=', $hoy);
+            Cita::aplicarFiltroOcupantes($citasFuturasQuery, 'citas');
+            $citasFuturas = $citasFuturasQuery->count();
 
             if ($medicosActivos > 0 || $citasFuturas > 0) {
                 $advertencia = "La especialidad tiene {$medicosActivos} médico(s) activo(s) y {$citasFuturas} cita(s) futura(s) asociada(s). Dejará de ofrecerse en nuevos turnos, pero las citas programadas se mantienen vigentes (CU-07).";

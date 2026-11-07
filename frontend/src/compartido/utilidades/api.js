@@ -16,7 +16,18 @@ api.interceptors.request.use((configuracion) => {
   const token = localStorage.getItem('token_clinica');
 
   if (token) {
-    configuracion.headers.Authorization = `Bearer ${token}`;
+    if (configuracion.headers && typeof configuracion.headers.set === 'function') {
+      configuracion.headers.set('Authorization', `Bearer ${token}`);
+    } else {
+      configuracion.headers = configuracion.headers || {};
+      configuracion.headers.Authorization = `Bearer ${token}`;
+      configuracion.headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
+
+  // Sanitizar si se pasa la ruta con prefijo /api repetido
+  if (configuracion.url && configuracion.url.startsWith('/api/')) {
+    configuracion.url = configuracion.url.substring(4);
   }
 
   return configuracion;

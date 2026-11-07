@@ -4,6 +4,7 @@ namespace App\Paquetes\CatalogosHorarios\CU11_SuspenderHorarioGestionarCitasAfec
 
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Models\Cita;
 use App\Nucleo\Bitacora\ServicioBitacora;
 use App\Paquetes\CitasNotificaciones\CU16_EnviarNotificacionesRecordatorios\EnviarNotificacionesServicio;
 
@@ -219,26 +220,22 @@ class SuspenderHorarioServicio
                 throw new \Exception('El médico cuenta con una suspensión activa en el turno seleccionado: ' . $suspension->motivo, 422);
             }
 
-            // 4. Verificar solapamiento con otras citas del médico en ese turno
-            $solapamiento = DB::table('citas')
-                ->where('id_medico', $idMedico)
-                ->where('fecha_cita', $nuevaFecha)
-                ->where('id_cita', '!=', $cita->id_cita)
-                ->where('estado', '!=', 'cancelada')
-                ->whereNotIn('id_estado_cita', [5, 6]) // Canceladas o inasistencias
-                ->where(function ($q) use ($nuevaHoraInicio, $nuevaHoraFin) {
-                    $q->where('hora_inicio', '<', $nuevaHoraFin)
-                      ->where('hora_fin', '>', $nuevaHoraInicio);
-                })
-                ->exists();
+            // 4. Verificar solapamiento con otras citas del médico usando la regla unificada (Cita::querySolapamiento)
+            $solapamiento = Cita::querySolapamiento(
+                $idMedico,
+                $nuevaFecha,
+                $nuevaHoraInicio,
+                $nuevaHoraFin,
+                $cita->id_cita
+            )->lockForUpdate()->exists();
 
             if ($solapamiento) {
                 throw new \Exception('El turno seleccionado ya se encuentra ocupado por otra cita agendada.', 422);
             }
 
-            // 5. Estado destino: Confirmada (2)
+            // 5. Estado destino: Confirmada (id=3 en catálogo)
             $estadoConfirmada = DB::table('estados_cita')->where('codigo', 'confirmada')->first();
-            $idEstadoConfirmada = $estadoConfirmada ? $estadoConfirmada->id_estado_cita : 2;
+            $idEstadoConfirmada = $estadoConfirmada ? $estadoConfirmada->id_estado_cita : 3;
 
             $notaReubicacion = " [Reubicada el " . now()->format('Y-m-d H:i') . ": turno anterior {$cita->fecha_cita} " . substr($cita->hora_inicio, 0, 5) . "]";
             if (!empty($datos['motivo_reubicacion'])) {

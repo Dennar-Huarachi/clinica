@@ -639,12 +639,24 @@ export default function PaginaAgendaCitas() {
                       </Link>
                     )}
 
-                    <Link
-                      to={`/historia-clinica/${c.id_paciente}`}
-                      className="boton-terciario"
-                    >
-                      📋 Ver Historial Clínico
-                    </Link>
+                    {c.id_paciente ? (
+                      <Link
+                        to={`/medico/atenciones/${c.id_paciente}`}
+                        className="boton-terciario"
+                      >
+                        📋 Ver Historial Clínico
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        className="boton-terciario"
+                        style={{ opacity: 0.5, cursor: 'not-allowed' }}
+                        title="ID de paciente no disponible"
+                      >
+                        📋 Ver Historial Clínico
+                      </button>
+                    )}
 
                     {['pendiente', 'confirmada', 'en_espera'].includes(c.estado_codigo) && (
                       <button

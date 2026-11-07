@@ -46,7 +46,15 @@ export default function PaginaKardexPacientes() {
   }, [terminoBusqueda]);
 
   const irAExpediente = (idPaciente) => {
-    navigate(`/historia-clinica/pacientes/${idPaciente}`);
+    const id = idPaciente || 0;
+    if (!id || id === '0' || id === 'undefined' || id === 'null') {
+      setAlerta({
+        tipo: 'advertencia',
+        mensaje: 'No se pudo identificar el expediente del paciente seleccionado.',
+      });
+      return;
+    }
+    navigate(`/medico/atenciones/${id}`);
   };
 
   const columnas = [

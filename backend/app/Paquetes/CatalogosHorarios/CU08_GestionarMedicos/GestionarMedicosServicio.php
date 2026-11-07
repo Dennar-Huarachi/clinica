@@ -3,6 +3,7 @@
 namespace App\Paquetes\CatalogosHorarios\CU08_GestionarMedicos;
 
 use Illuminate\Support\Facades\DB;
+use App\Models\Cita;
 use App\Nucleo\Bitacora\ServicioBitacora;
 
 class GestionarMedicosServicio
@@ -198,13 +199,11 @@ class GestionarMedicosServicio
         } else {
             // 2. Advertencia de citas futuras y horarios al desactivar (Activo -> Inactivo — RN11):
             $hoy = date('Y-m-d');
-            $citasFuturas = DB::table('citas')
-                ->join('estados_cita', 'estados_cita.id_estado_cita', '=', 'citas.id_estado_cita')
+            $citasFuturasQuery = DB::table('citas')
                 ->where('citas.id_medico', $idMedico)
-                ->where('citas.fecha_cita', '>=', $hoy)
-                ->whereIn('estados_cita.codigo', ['programada', 'confirmada', 'pendiente', 'en_espera'])
-                ->where('citas.estado', 'activo')
-                ->count();
+                ->where('citas.fecha_cita', '>=', $hoy);
+            Cita::aplicarFiltroOcupantes($citasFuturasQuery, 'citas');
+            $citasFuturas = $citasFuturasQuery->count();
 
             $horariosActivos = DB::table('horarios_atencion')
                 ->where('id_medico', $idMedico)

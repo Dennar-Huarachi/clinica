@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../../../compartido/utilidades/api';
+import useDisponibilidadTurnos from '../CU10_ConsultarDisponibilidad/useDisponibilidadTurnos';
 
 export default function ModalReubicarCita({
   abierto,
@@ -13,12 +13,25 @@ export default function ModalReubicarCita({
 
   const [nuevaFecha, setNuevaFecha] = useState(hoyStr);
   const [idMedico, setIdMedico] = useState('');
-  const [turnos, setTurnos] = useState([]);
-  const [cargandoTurnos, setCargandoTurnos] = useState(false);
   const [turnoSeleccionado, setTurnoSeleccionado] = useState(null);
   const [motivoReubicacion, setMotivoReubicacion] = useState('');
-  const [mensajeDisponibilidad, setMensajeDisponibilidad] = useState(null);
   const [errorLocal, setErrorLocal] = useState(null);
+
+  const {
+    turnos,
+    turnosDisponibles,
+    cargando: cargandoTurnos,
+    motivoBloqueo,
+    errorServidor,
+    refrescar: refrescarTurnos,
+  } = useDisponibilidadTurnos({
+    idMedico,
+    idEspecialidad: cita?.id_especialidad,
+    fecha: nuevaFecha,
+    turnoSeleccionado,
+    onDeseleccionarTurno: () => setTurnoSeleccionado(null),
+    activo: Boolean(abierto && cita && idMedico && nuevaFecha),
+  });
 
   useEffect(() => {
     if (abierto && cita) {
@@ -28,46 +41,7 @@ export default function ModalReubicarCita({
       setMotivoReubicacion('');
       setErrorLocal(null);
     }
-  }, [abierto, cita]);
-
-  // Cargar disponibilidad de turnos cuando cambia la fecha o el médico
-  useEffect(() => {
-    if (!abierto || !cita || !idMedico || !nuevaFecha) return;
-
-    setCargandoTurnos(true);
-    setMensajeDisponibilidad(null);
-    setTurnoSeleccionado(null);
-
-    api
-      .get('/catalogos/disponibilidad', {
-        params: {
-          id_medico: idMedico,
-          id_especialidad: cita.id_especialidad,
-          fecha: nuevaFecha,
-        },
-      })
-      .then((res) => {
-        const datos = res.data?.datos || {};
-        if (datos.disponible === false) {
-          setTurnos([]);
-          setMensajeDisponibilidad(datos.motivo_bloqueo || 'No hay atención disponible para la fecha seleccionada.');
-        } else {
-          const listaTurnos = datos.turnos || [];
-          setTurnos(listaTurnos);
-          const disponibles = listaTurnos.filter((t) => t.disponible);
-          if (disponibles.length === 0) {
-            setMensajeDisponibilidad('No quedan cupos libres en este día. Seleccione otra fecha.');
-          }
-        }
-      })
-      .catch((err) => {
-        setTurnos([]);
-        setMensajeDisponibilidad(err.response?.data?.mensaje || 'Error al consultar disponibilidad de turnos.');
-      })
-      .finally(() => {
-        setCargandoTurnos(false);
-      });
-  }, [abierto, cita, idMedico, nuevaFecha]);
+  }, [abierto, cita, hoyStr]);
 
   if (!abierto || !cita) return null;
 
@@ -87,7 +61,11 @@ export default function ModalReubicarCita({
       motivo_reubicacion: motivoReubicacion.trim() || 'Reubicación por contingencia de horario médico',
     };
 
-    onConfirmar(payload, setErrorLocal);
+    onConfirmar(payload, (error) => {
+      setErrorLocal(error);
+      setTurnoSeleccionado(null);
+      refrescarTurnos();
+    });
   };
 
   return (
@@ -193,48 +171,51 @@ export default function ModalReubicarCita({
               <span className="turnos-titulo">Turnos Disponibles para el {nuevaFecha}</span>
               {turnoSeleccionado && (
                 <span className="turno-seleccionado-badge">
-                  Seleccionado: {turnoSeleccionado.hora_inicio} - {turnoSeleccionado.hora_fin}
+                  Turno seleccionado: {turnoSeleccionado.hora_inicio}
                 </span>
               )}
             </div>
 
             {cargandoTurnos ? (
               <div className="turnos-cargando">
-                <span className="spinner-turnos" /> Consultando disponibilidad horaria...
+                <span className="spinner-turnos" /> Calculando turnos disponibles en tiempo real…
               </div>
-            ) : mensajeDisponibilidad ? (
+            ) : motivoBloqueo ? (
               <div className="turnos-mensaje-vacio">
-                <span>ℹ️ {mensajeDisponibilidad}</span>
+                <span>ℹ️ {motivoBloqueo}</span>
               </div>
-            ) : turnos.length === 0 ? (
+            ) : errorServidor ? (
               <div className="turnos-mensaje-vacio">
-                <span>No se encontraron turnos configurados para este día.</span>
+                <span>⚠️ {errorServidor}</span>
+              </div>
+            ) : turnosDisponibles.length === 0 ? (
+              <div className="turnos-mensaje-vacio">
+                <span>No hay turnos disponibles para esta fecha. Elija otra fecha u otro médico.</span>
               </div>
             ) : (
               <div className="grilla-turnos-chips">
-                {turnos.map((t, idx) => {
-                  const esSeleccionado =
-                    turnoSeleccionado && turnoSeleccionado.hora_inicio === t.hora_inicio;
-                  const esLibre = t.disponible === true;
+                {turnos
+                  .filter((t) => t.disponible === true || t.disponible === 1)
+                  .map((t, idx) => {
+                    const esSeleccionado =
+                      turnoSeleccionado && turnoSeleccionado.hora_inicio === t.hora_inicio;
 
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      disabled={!esLibre || guardando}
-                      onClick={() => setTurnoSeleccionado(t)}
-                      className={`turno-chip ${esLibre ? 'chip-libre' : 'chip-bloqueado'} ${
-                        esSeleccionado ? 'chip-seleccionado' : ''
-                      }`}
-                      title={esLibre ? 'Turno disponible' : `No disponible (${t.estado_turno || 'ocupado'})`}
-                    >
-                      <span className="chip-hora">{t.hora_inicio}</span>
-                      <span className="chip-estado">
-                        {esSeleccionado ? '✓ Elegido' : esLibre ? 'Libre' : t.estado_turno || 'Ocupado'}
-                      </span>
-                    </button>
-                  );
-                })}
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        disabled={guardando}
+                        onClick={() => setTurnoSeleccionado(t)}
+                        className={`turno-chip chip-libre ${
+                          esSeleccionado ? 'chip-seleccionado' : ''
+                        }`}
+                        title={`Seleccionar turno ${t.hora_inicio}`}
+                        aria-label={`Turno ${t.hora_inicio}`}
+                      >
+                        <span className="chip-hora">{t.hora_inicio}</span>
+                      </button>
+                    );
+                  })}
               </div>
             )}
           </div>
@@ -455,27 +436,20 @@ export default function ModalReubicarCita({
 
         .turno-chip {
           display: flex;
-          flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: 0.5rem 0.4rem;
+          padding: 0.6rem 0.5rem;
+          min-height: 42px;
           border-radius: 8px;
           cursor: pointer;
-          border: 1px solid transparent;
+          border: 1.5px solid transparent;
           transition: all 0.15s ease;
         }
 
         .chip-hora {
-          font-size: 0.9rem;
+          font-size: 0.95rem;
           font-weight: 700;
-          line-height: 1.1;
-        }
-
-        .chip-estado {
-          font-size: 0.65rem;
-          text-transform: uppercase;
-          font-weight: 600;
-          margin-top: 2px;
+          line-height: 1;
         }
 
         .chip-libre {

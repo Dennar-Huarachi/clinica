@@ -72,7 +72,7 @@ class GestionarCitasControlador extends Controller
 
             $resultado = $this->servicio->crear($datos, $usuario?->id_usuario);
             return RespuestaApi::exito($resultado, 'Cita reservada satisfactoriamente', 201);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
             return RespuestaApi::error($e->getMessage(), $codigo);
         }
@@ -85,7 +85,7 @@ class GestionarCitasControlador extends Controller
             // Pasar objeto de usuario para validación estricta de propiedad de cita (RN19)
             $resultado = $this->servicio->reprogramar($id, $request->validated(), $usuario);
             return RespuestaApi::exito($resultado, 'Cita reprogramada exitosamente');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
             return RespuestaApi::error($e->getMessage(), $codigo);
         }
@@ -98,7 +98,7 @@ class GestionarCitasControlador extends Controller
             $motivo = $request->input('motivo', 'Cancelado a solicitud');
             $this->servicio->cancelar($id, $motivo, $usuario);
             return RespuestaApi::exito(null, 'Cita cancelada correctamente');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
             return RespuestaApi::error($e->getMessage(), $codigo);
         }
@@ -110,7 +110,7 @@ class GestionarCitasControlador extends Controller
             $usuario = $request->attributes->get('usuario_autenticado');
             $resultado = $this->servicio->confirmarCita($id, $usuario);
             return RespuestaApi::exito($resultado, 'Cita confirmada correctamente');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
             return RespuestaApi::error($e->getMessage(), $codigo);
         }

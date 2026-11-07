@@ -455,12 +455,24 @@ export default function VistaSemanalAgenda({
                 </Link>
               )}
 
-              <Link
-                to={`/historia-clinica/${citaDetalle.id_paciente}`}
-                className="boton-terciario"
-              >
-                📋 Ver Historial Clínico
-              </Link>
+              {citaDetalle.id_paciente ? (
+                <Link
+                  to={`/medico/atenciones/${citaDetalle.id_paciente}`}
+                  className="boton-terciario"
+                >
+                  📋 Ver Historial Clínico
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="boton-terciario"
+                  style={{ opacity: 0.5, cursor: 'not-allowed' }}
+                  title="ID de paciente no disponible"
+                >
+                  📋 Ver Historial Clínico
+                </button>
+              )}
 
               {['pendiente', 'confirmada', 'en_espera'].includes(citaDetalle.estado_codigo) && alMarcarAsistencia && (
                 <button

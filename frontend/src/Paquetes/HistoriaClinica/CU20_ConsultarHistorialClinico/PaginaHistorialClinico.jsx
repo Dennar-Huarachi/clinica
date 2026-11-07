@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../../../compartido/utilidades/api';
 import LayoutPrincipal from '../../../compartido/layouts/LayoutPrincipal';
 import Alerta from '../../../compartido/componentes/Alerta';
@@ -9,6 +9,7 @@ import ModalResultadosLab from '../CU19_RegistrarResultadosLaboratorio/ModalResu
 export default function PaginaHistorialClinico() {
   const { idPaciente } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const usuario = JSON.parse(localStorage.getItem('usuario_clinica') || '{}');
   const rol = (usuario.rol || '').toLowerCase();
@@ -16,24 +17,26 @@ export default function PaginaHistorialClinico() {
   const esMedicoOAdmin = ['medico', 'administrador'].includes(rol);
 
   // Si es paciente, la RN19 del backend forzará su propio perfil
-  const idTarget = idPaciente || usuario.id_paciente;
+  const idTarget = idPaciente || (rol === 'paciente' ? usuario.id_paciente : null);
 
+  const esRutaLab = location?.pathname?.includes('laboratorio');
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [alerta, setAlerta] = useState(null);
-  const [pestañaActiva, setPestañaActiva] = useState('atenciones'); // 'atenciones' | 'laboratorios' | 'citas'
+  const [pestañaActiva, setPestañaActiva] = useState(esRutaLab ? 'laboratorios' : 'atenciones'); // 'atenciones' | 'laboratorios' | 'citas'
   const [modalLabAbierto, setModalLabAbierto] = useState(false);
 
-  const cargarHistorial = async () => {
+  const cargarHistorial = async (id = idTarget) => {
+    const idFinal = id || idTarget;
+    if (!idFinal || idFinal === '0' || idFinal === 0 || idFinal === 'undefined' || idFinal === 'null') {
+      setCargando(false);
+      return;
+    }
+
     try {
       setCargando(true);
       setAlerta(null);
-      // El backend aplica RN19 de forma transparente si es paciente
-      const endpoint = idTarget
-        ? `/historia-clinica/pacientes/${idTarget}`
-        : '/historia-clinica/pacientes/0';
-
-      const res = await api.get(endpoint);
+      const res = await api.get(`/historia-clinica/pacientes/${idFinal}`);
       setDatos(res.data?.datos || null);
     } catch (err) {
       setAlerta({
@@ -46,8 +49,22 @@ export default function PaginaHistorialClinico() {
   };
 
   useEffect(() => {
-    cargarHistorial();
-  }, [idTarget]);
+    // Guarda de seguridad estricta: Si no hay idPaciente o es '0', abortar la carga inmediatamente
+    if (!idPaciente || idPaciente === '0' || idPaciente === 'undefined') {
+      if (rol === 'paciente' && usuario.id_paciente) {
+        cargarHistorial(usuario.id_paciente);
+        return;
+      }
+      setCargando(false);
+      setAlerta({
+        tipo: 'advertencia',
+        mensaje: 'Debe seleccionar un paciente desde el Kardex o la Agenda médica para consultar su expediente clínico.',
+      });
+      return;
+    }
+
+    cargarHistorial(idPaciente);
+  }, [idPaciente]);
 
   const volverAtras = () => {
     if (rol === 'medico') {
@@ -95,7 +112,7 @@ export default function PaginaHistorialClinico() {
       <LayoutPrincipal titulo="Expediente Clínico">
         <div style={{ maxWidth: '800px', margin: '2rem auto', padding: '0 1rem' }}>
           <Alerta
-            tipo={alerta?.tipo || 'error'}
+            tipo={alerta?.tipo || 'advertencia'}
             mensaje={alerta?.mensaje || 'No se encontró la información del expediente clínico solicitado.'}
           />
           <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
@@ -105,7 +122,7 @@ export default function PaginaHistorialClinico() {
               onClick={volverAtras}
               style={{ minHeight: '44px' }}
             >
-              ← Volver al Módulo Principal
+              ← {rol === 'medico' ? 'Ir al Kardex de Pacientes' : 'Volver al Módulo Principal'}
             </button>
           </div>
         </div>

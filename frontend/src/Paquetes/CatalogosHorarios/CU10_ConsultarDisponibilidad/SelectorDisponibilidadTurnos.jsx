@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import api from '../../../compartido/utilidades/api';
+import React, { useEffect } from 'react';
+import useDisponibilidadTurnos from './useDisponibilidadTurnos';
 
 /**
  * SelectorDisponibilidadTurnos (CU-10)
@@ -11,6 +11,7 @@ import api from '../../../compartido/utilidades/api';
  * - fecha: Fecha de consulta en formato YYYY-MM-DD
  * - onSeleccionarTurno: Callback invocado al hacer clic en un turno libre: (turno) => void
  * - turnoSeleccionado: Turno actualmente seleccionado { hora_inicio, hora_fin }
+ * - claveRefresco: Disparador numérico para forzar recarga inmediata desde el componente padre
  */
 export default function SelectorDisponibilidadTurnos({
   idEspecialidad,
@@ -18,44 +19,29 @@ export default function SelectorDisponibilidadTurnos({
   fecha,
   onSeleccionarTurno,
   turnoSeleccionado = null,
+  claveRefresco = 0,
 }) {
-  const [turnos, setTurnos] = useState([]);
-  const [cargando, setCargando] = useState(false);
-  const [motivoBloqueo, setMotivoBloqueo] = useState(null);
-  const [errorServidor, setErrorServidor] = useState(null);
+  const {
+    turnos,
+    turnosDisponibles,
+    cargando,
+    motivoBloqueo,
+    errorServidor,
+    refrescar,
+  } = useDisponibilidadTurnos({
+    idMedico,
+    idEspecialidad,
+    fecha,
+    turnoSeleccionado,
+    onDeseleccionarTurno: () => onSeleccionarTurno && onSeleccionarTurno(null),
+  });
 
+  // Re-consultar cuando el componente padre incremente la clave de refresco (ej. tras un conflicto 409)
   useEffect(() => {
-    if (!idMedico || !idEspecialidad || !fecha) {
-      setTurnos([]);
-      setMotivoBloqueo(null);
-      setErrorServidor(null);
-      return;
+    if (claveRefresco > 0) {
+      refrescar();
     }
-
-    setCargando(true);
-    setMotivoBloqueo(null);
-    setErrorServidor(null);
-
-    api.get(`/catalogos/disponibilidad?id_medico=${idMedico}&id_especialidad=${idEspecialidad}&fecha=${fecha}`)
-      .then((res) => {
-        const resultado = res.data?.datos || {};
-        if (resultado.disponible) {
-          setTurnos(resultado.turnos || []);
-          setMotivoBloqueo(null);
-        } else {
-          setTurnos([]);
-          setMotivoBloqueo(resultado.motivo_bloqueo || 'No hay turnos disponibles para la fecha indicada.');
-        }
-      })
-      .catch((err) => {
-        setTurnos([]);
-        const msj = err.response?.data?.mensaje || 'Error al consultar disponibilidad de turnos.';
-        setErrorServidor(msj);
-      })
-      .finally(() => {
-        setCargando(false);
-      });
-  }, [idMedico, idEspecialidad, fecha]);
+  }, [claveRefresco, refrescar]);
 
   return (
     <div className="selector-disponibilidad-contenedor" style={{ marginTop: '1.25rem', marginBottom: '1.25rem' }}>
@@ -119,7 +105,7 @@ export default function SelectorDisponibilidadTurnos({
       )}
 
       {/* 4. Sin turnos disponibles para ese día */}
-      {!cargando && !motivoBloqueo && !errorServidor && turnos.length === 0 && idMedico && idEspecialidad && (
+      {!cargando && !motivoBloqueo && !errorServidor && turnosDisponibles.length === 0 && idMedico && idEspecialidad && (
         <div
           style={{
             padding: '1rem',
@@ -131,31 +117,31 @@ export default function SelectorDisponibilidadTurnos({
             fontSize: '0.88rem',
           }}
         >
-          No hay turnos disponibles para los criterios seleccionados. Intenta seleccionar otra fecha.
+          No hay turnos disponibles para esta fecha. Elija otra fecha u otro médico.
         </div>
       )}
 
-      {/* 5. Cuadrícula de Turnos (6 columnas en Desktop, 3 columnas en Móvil <= 640px) */}
-      {!cargando && !motivoBloqueo && !errorServidor && turnos.length > 0 && (
+      {/* 5. Cuadrícula de Turnos (Filtro estricto: solo turnos disponibles) */}
+      {!cargando && !motivoBloqueo && !errorServidor && turnosDisponibles.length > 0 && (
         <>
           <div className="cuadricula-turnos-cu10">
-            {turnos.map((t) => {
-              const seleccionado = turnoSeleccionado?.hora_inicio === t.hora_inicio;
-              return (
-                <button
-                  key={t.hora_inicio}
-                  type="button"
-                  disabled={!t.disponible}
-                  onClick={() => onSeleccionarTurno && onSeleccionarTurno(t)}
-                  className={`slot-turno-cu10 ${t.disponible ? 'disponible' : 'ocupado'} ${seleccionado ? 'seleccionado' : ''}`}
-                  title={t.disponible ? `Seleccionar turno ${t.hora_inicio} - ${t.hora_fin}` : 'Turno ocupado'}
-                  aria-label={`Turno ${t.hora_inicio} a ${t.hora_fin}, ${t.disponible ? 'disponible' : 'ocupado'}`}
-                >
-                  <span className="slot-hora-inicio">{t.hora_inicio}</span>
-                  <span className="slot-hora-fin">{t.hora_fin}</span>
-                </button>
-              );
-            })}
+            {turnos
+              .filter((turno) => turno.disponible === true || turno.disponible === 1)
+              .map((t) => {
+                const seleccionado = turnoSeleccionado?.hora_inicio === t.hora_inicio;
+                return (
+                  <button
+                    key={t.hora_inicio}
+                    type="button"
+                    onClick={() => onSeleccionarTurno && onSeleccionarTurno(t)}
+                    className={`slot-turno-cu10 disponible ${seleccionado ? 'seleccionado' : ''}`}
+                    title={`Seleccionar turno ${t.hora_inicio}`}
+                    aria-label={`Turno ${t.hora_inicio}`}
+                  >
+                    <span className="slot-hora-inicio">{t.hora_inicio}</span>
+                  </button>
+                );
+              })}
           </div>
 
           {turnoSeleccionado && (
@@ -177,7 +163,7 @@ export default function SelectorDisponibilidadTurnos({
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
-              <span>Turno seleccionado: <strong>{turnoSeleccionado.hora_inicio} - {turnoSeleccionado.hora_fin}</strong></span>
+              <span>Turno seleccionado: <strong>{turnoSeleccionado.hora_inicio}</strong></span>
             </div>
           )}
         </>
@@ -196,16 +182,15 @@ export default function SelectorDisponibilidadTurnos({
         .slot-turno-cu10 {
           min-height: 44px;
           min-width: 44px;
-          padding: 0.45rem 0.25rem;
+          padding: 0.5rem 0.25rem;
           border: 1.5px solid #CFDEE3;
           border-radius: 8px;
           background: #FFFFFF;
           color: var(--texto);
-          font-weight: 600;
+          font-weight: 700;
           cursor: pointer;
           transition: all 0.18s ease-in-out;
           display: flex;
-          flex-direction: column;
           align-items: center;
           justify-content: center;
           text-align: center;
@@ -214,15 +199,9 @@ export default function SelectorDisponibilidadTurnos({
         }
 
         .slot-turno-cu10 .slot-hora-inicio {
-          font-size: 0.92rem;
-          line-height: 1.15;
+          font-size: 0.95rem;
+          line-height: 1;
           font-weight: 700;
-        }
-
-        .slot-turno-cu10 .slot-hora-fin {
-          font-size: 0.72rem;
-          opacity: 0.8;
-          line-height: 1.1;
         }
 
         .slot-turno-cu10.disponible:hover {
@@ -240,7 +219,7 @@ export default function SelectorDisponibilidadTurnos({
         }
 
         .slot-turno-cu10.ocupado {
-          background: #F1F5F7;
+          background: #F0F4F6;
           color: #94A3B8;
           border-color: #E2E8F0;
           cursor: not-allowed;

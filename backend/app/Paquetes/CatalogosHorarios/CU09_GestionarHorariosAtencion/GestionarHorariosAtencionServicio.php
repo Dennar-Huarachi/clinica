@@ -3,6 +3,7 @@
 namespace App\Paquetes\CatalogosHorarios\CU09_GestionarHorariosAtencion;
 
 use Illuminate\Support\Facades\DB;
+use App\Models\Cita;
 use App\Nucleo\Bitacora\ServicioBitacora;
 
 class GestionarHorariosAtencionServicio
@@ -198,17 +199,15 @@ class GestionarHorariosAtencionServicio
         } else {
             // Inactivación con citas futuras (RN11)
             $hoy = date('Y-m-d');
-            $citasAfectadas = DB::table('citas')
-                ->join('estados_cita', 'estados_cita.id_estado_cita', '=', 'citas.id_estado_cita')
+            $citasAfectadasQuery = DB::table('citas')
                 ->where('citas.id_medico', $horario->id_medico)
                 ->where('citas.id_especialidad', $horario->id_especialidad)
                 ->where('citas.fecha_cita', '>=', $hoy)
                 ->whereRaw('EXTRACT(ISODOW FROM citas.fecha_cita) = ?', [$horario->dia_semana])
                 ->where('citas.hora_inicio', '>=', $horario->hora_inicio)
-                ->where('citas.hora_inicio', '<', $horario->hora_fin)
-                ->whereIn('estados_cita.codigo', ['programada', 'confirmada', 'pendiente', 'en_espera'])
-                ->where('citas.estado', 'activo')
-                ->count();
+                ->where('citas.hora_inicio', '<', $horario->hora_fin);
+            Cita::aplicarFiltroOcupantes($citasAfectadasQuery, 'citas');
+            $citasAfectadas = $citasAfectadasQuery->count();
 
             if ($citasAfectadas > 0) {
                 $alerta = "El horario se inactivó pero tiene {$citasAfectadas} cita(s) futura(s) asociada(s). Se recomienda gestionar suspensiones para reubicar a los pacientes afectados.";
