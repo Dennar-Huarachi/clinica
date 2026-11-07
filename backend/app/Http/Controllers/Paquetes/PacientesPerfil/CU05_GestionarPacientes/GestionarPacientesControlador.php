@@ -40,9 +40,15 @@ class GestionarPacientesControlador extends Controller
     {
         try {
             $id = $this->servicio->crear($request->validated());
-            return RespuestaApi::exito(['id_paciente' => $id], 'Paciente registrado satisfactoriamente', 201);
-        } catch (\Exception $e) {
-            return RespuestaApi::error('Error al registrar paciente: ' . $e->getMessage(), 400);
+            return RespuestaApi::exito(
+                ['id_paciente' => $id],
+                'Paciente registrado correctamente. Su cuenta de acceso ha sido creada usando su CI como contraseña.',
+                201
+            );
+        } catch (\Throwable $e) {
+            report($e);
+            $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
+            return RespuestaApi::error('Error al registrar paciente: ' . $e->getMessage(), $codigo);
         }
     }
 
@@ -51,8 +57,10 @@ class GestionarPacientesControlador extends Controller
         try {
             $this->servicio->actualizar($id, $request->validated());
             return RespuestaApi::exito(null, 'Paciente actualizado satisfactoriamente');
-        } catch (\Exception $e) {
-            return RespuestaApi::error('Error al actualizar paciente: ' . $e->getMessage(), 400);
+        } catch (\Throwable $e) {
+            report($e);
+            $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
+            return RespuestaApi::error('Error al actualizar paciente: ' . $e->getMessage(), $codigo);
         }
     }
 
@@ -61,8 +69,10 @@ class GestionarPacientesControlador extends Controller
         try {
             $nuevoEstado = $this->servicio->alternarEstado($id);
             return RespuestaApi::exito(['estado' => $nuevoEstado], "Estado del paciente actualizado a {$nuevoEstado}");
-        } catch (\Exception $e) {
-            return RespuestaApi::error('Error al cambiar estado lógico del paciente: ' . $e->getMessage(), 400);
+        } catch (\Throwable $e) {
+            report($e);
+            $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
+            return RespuestaApi::error('Error al cambiar estado lógico del paciente: ' . $e->getMessage(), $codigo);
         }
     }
 }

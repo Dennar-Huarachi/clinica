@@ -9,7 +9,7 @@ import ChecklistContrasena, { esContrasenaSegura } from '../../../comun/componen
  * Valida que la nueva contraseña cumpla los 5 requisitos de seguridad
  * y que no sea idéntica a la actual.
  */
-export default function ModalCambiarContrasena({ abierto, alCerrar }) {
+export default function ModalCambiarContrasena({ abierto, alCerrar, forzarCambio = false }) {
   const [contrasenaActual, setContrasenaActual] = useState('');
   const [contrasenaNueva, setContrasenaNueva] = useState('');
   const [confirmacionContrasena, setConfirmacionContrasena] = useState('');
@@ -36,16 +36,16 @@ export default function ModalCambiarContrasena({ abierto, alCerrar }) {
     }
   }, [abierto]);
 
-  // Manejar tecla ESC para accesibilidad
+  // Manejar tecla ESC para accesibilidad (deshabilitado en modo forzado)
   useEffect(() => {
     const manejarTecla = (e) => {
-      if (e.key === 'Escape' && abierto && !cargando) {
+      if (e.key === 'Escape' && abierto && !cargando && !forzarCambio) {
         alCerrar();
       }
     };
     window.addEventListener('keydown', manejarTecla);
     return () => window.removeEventListener('keydown', manejarTecla);
-  }, [abierto, cargando, alCerrar]);
+  }, [abierto, cargando, alCerrar, forzarCambio]);
 
   if (!abierto) return null;
 
@@ -126,7 +126,7 @@ export default function ModalCambiarContrasena({ abierto, alCerrar }) {
   };
 
   return (
-    <div className="modal-contrasena-backdrop" onClick={() => !cargando && alCerrar()}>
+    <div className="modal-contrasena-backdrop" onClick={() => !cargando && !forzarCambio && alCerrar()}>
       <div
         className="modal-contrasena-tarjeta"
         onClick={(e) => e.stopPropagation()}
@@ -144,22 +144,48 @@ export default function ModalCambiarContrasena({ abierto, alCerrar }) {
           </div>
           <div>
             <h2 id="titulo-modal-contrasena" className="modal-contrasena-titulo">
-              Cambiar Contraseña
+              {forzarCambio ? 'Cambio Obligatorio de Contraseña' : 'Cambiar Contraseña'}
             </h2>
             <p className="modal-contrasena-subtitulo">
-              Actualiza periódicamente tu clave para proteger la confidencialidad de tu cuenta.
+              {forzarCambio
+                ? 'Primer inicio de sesión detectado. Por seguridad debe sustituir su contraseña temporal (CI) por una clave personal segura para continuar.'
+                : 'Actualiza periódicamente tu clave para proteger la confidencialidad de tu cuenta.'}
             </p>
           </div>
-          <button
-            type="button"
-            className="modal-contrasena-boton-cerrar"
-            onClick={alCerrar}
-            disabled={cargando}
-            aria-label="Cerrar modal"
-          >
-            ✕
-          </button>
+          {!forzarCambio && (
+            <button
+              type="button"
+              className="modal-contrasena-boton-cerrar"
+              onClick={alCerrar}
+              disabled={cargando}
+              aria-label="Cerrar modal"
+            >
+              ✕
+            </button>
+          )}
         </div>
+
+        {forzarCambio && (
+          <div
+            style={{
+              backgroundColor: '#FFFBEB',
+              border: '1px solid #FDE68A',
+              borderRadius: '8px',
+              padding: '0.75rem 1rem',
+              marginBottom: '1rem',
+              fontSize: '0.875rem',
+              color: '#92400E',
+              display: 'flex',
+              gap: '0.5rem',
+              alignItems: 'flex-start',
+            }}
+          >
+            <span style={{ fontSize: '1.1rem' }}>🛡️</span>
+            <div>
+              <strong>Requisito de Seguridad Inicial:</strong> Ingrese su número de carnet (CI) como <em>Contraseña Actual</em> y elija una nueva contraseña segura que cumpla con los requisitos mostrados abajo.
+            </div>
+          </div>
+        )}
 
         <Alerta tipo={alerta?.tipo} mensaje={alerta?.mensaje} />
 
@@ -304,19 +330,22 @@ export default function ModalCambiarContrasena({ abierto, alCerrar }) {
           </div>
 
           {/* Botones de Acción */}
-          <div className="modal-contrasena-acciones">
-            <button
-              type="button"
-              className="boton-cancelar-modal"
-              onClick={alCerrar}
-              disabled={cargando}
-            >
-              Cancelar
-            </button>
+          <div className="modal-contrasena-acciones" style={{ justifyContent: forzarCambio ? 'flex-end' : 'flex-end' }}>
+            {!forzarCambio && (
+              <button
+                type="button"
+                className="boton-cancelar-modal"
+                onClick={alCerrar}
+                disabled={cargando}
+              >
+                Cancelar
+              </button>
+            )}
             <button
               type="submit"
               className="boton-guardar-modal"
               disabled={cargando}
+              style={{ width: forzarCambio ? '100%' : 'auto' }}
             >
               {cargando ? 'Actualizando contraseña…' : 'Guardar Nueva Contraseña'}
             </button>

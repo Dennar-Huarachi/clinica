@@ -31,6 +31,7 @@ class ManejadorSesion
                 'usuarios.correo',
                 'usuarios.id_rol',
                 'usuarios.ultimo_acceso',
+                'usuarios.debe_cambiar_contrasena',
                 'roles.nombre as rol',
                 'personas.id_persona',
                 'personas.nombres',
@@ -42,6 +43,8 @@ class ManejadorSesion
         if (!$usuario) {
             return RespuestaApi::error('Sesión inválida o expirada. Por favor vuelva a iniciar sesión.', 401);
         }
+
+        $usuario->debe_cambiar_contrasena = (bool)$usuario->debe_cambiar_contrasena;
 
         // Si es médico o paciente, vincular IDs de entidades
         $medico = DB::table('medicos')->where('id_persona', $usuario->id_persona)->first();

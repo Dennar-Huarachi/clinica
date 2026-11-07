@@ -3,6 +3,7 @@
 namespace App\Paquetes\PacientesPerfil\CU05_GestionarPacientes;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use App\Nucleo\Bitacora\ServicioBitacora;
 
 class GestionarPacientesServicio
@@ -92,14 +93,17 @@ class GestionarPacientesServicio
     public function crear(array $datos): int
     {
         return DB::transaction(function () use ($datos) {
+            $ciLimpio = trim($datos['ci']);
+            $correoLimpio = !empty(trim($datos['correo'] ?? '')) ? trim($datos['correo']) : null;
+
             $idPersona = DB::table('personas')->insertGetId([
-                'ci' => $datos['ci'],
-                'nombres' => $datos['nombres'],
-                'apellidos' => $datos['apellidos'],
+                'ci' => $ciLimpio,
+                'nombres' => trim($datos['nombres']),
+                'apellidos' => trim($datos['apellidos']),
                 'fecha_nacimiento' => $datos['fecha_nacimiento'] ?? null,
                 'sexo' => $datos['sexo'] ?? null,
                 'telefono' => $datos['telefono'] ?? null,
-                'correo' => $datos['correo'] ?? null,
+                'correo' => $correoLimpio,
                 'direccion' => $datos['direccion'] ?? null,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -139,13 +143,46 @@ class GestionarPacientesServicio
                 ]);
             }
 
+            // 1. Recuperación del Rol de Paciente
+            $rolPaciente = DB::table('roles')->where('nombre', 'paciente')->value('id_rol') ?? 4;
+
+            // 2. Generación Automática del Usuario Web (CU-05)
+            // Se usa el número de CI como nombre de usuario (o derivado único) y como contraseña temporal
+            $nombreUsuarioBase = $ciLimpio;
+            $nombreUsuario = $nombreUsuarioBase;
+            $contador = 1;
+            while (DB::table('usuarios')->where('nombre_usuario', $nombreUsuario)->exists()) {
+                $nombreUsuario = $nombreUsuarioBase . '_' . $contador;
+                $contador++;
+            }
+
+            $idUsuario = DB::table('usuarios')->insertGetId([
+                'id_persona' => $idPersona,
+                'id_rol' => $rolPaciente,
+                'nombre_usuario' => $nombreUsuario,
+                'correo' => $correoLimpio,
+                'contrasena_hash' => Hash::make($ciLimpio),
+                'debe_cambiar_contrasena' => true,
+                'estado' => 'activo',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ], 'id_usuario');
+
+            // 3. Auditoría con trazabilidad de creación administrativa (CU-24 / RN21)
             ServicioBitacora::registrar(
                 'CU05_GestionarPacientes',
                 'CREAR_PACIENTE',
                 'pacientes',
                 (string)$idPaciente,
                 null,
-                ['codigo_historia' => $codigoHistoria]
+                [
+                    'codigo_historia' => $codigoHistoria,
+                    'id_usuario' => $idUsuario,
+                    'ci' => $ciLimpio,
+                    'origen' => 'registro_presencial_administrativo',
+                    'cuenta_usuario_generada' => true,
+                    'debe_cambiar_contrasena' => true,
+                ]
             );
 
             return $idPaciente;
@@ -160,15 +197,23 @@ class GestionarPacientesServicio
                 throw new \Exception('Paciente no encontrado', 404);
             }
 
+            $correoLimpio = !empty(trim($datos['correo'] ?? '')) ? trim($datos['correo']) : null;
+
             DB::table('personas')->where('id_persona', $paciente->id_persona)->update([
-                'ci' => $datos['ci'],
-                'nombres' => $datos['nombres'],
-                'apellidos' => $datos['apellidos'],
+                'ci' => trim($datos['ci']),
+                'nombres' => trim($datos['nombres']),
+                'apellidos' => trim($datos['apellidos']),
                 'fecha_nacimiento' => $datos['fecha_nacimiento'] ?? null,
                 'sexo' => $datos['sexo'] ?? null,
                 'telefono' => $datos['telefono'] ?? null,
-                'correo' => $datos['correo'] ?? null,
+                'correo' => $correoLimpio,
                 'direccion' => $datos['direccion'] ?? null,
+                'updated_at' => now(),
+            ]);
+
+            // Si la persona tiene cuenta de usuario web, sincronizar correo
+            DB::table('usuarios')->where('id_persona', $paciente->id_persona)->update([
+                'correo' => $correoLimpio,
                 'updated_at' => now(),
             ]);
 

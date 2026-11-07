@@ -163,13 +163,27 @@ function IconoMenu({ nombre }) {
 }
 
 export default function Sidebar({ onCerrarDrawer }) {
-  const [modalPasswordAbierto, setModalPasswordAbierto] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
   const usuarioStr = localStorage.getItem('usuario_clinica');
-  const usuario = usuarioStr ? JSON.parse(usuarioStr) : null;
+  let usuario = null;
+  try {
+    usuario = usuarioStr ? JSON.parse(usuarioStr) : null;
+  } catch {
+    usuario = null;
+  }
   const rol = (usuario?.rol || 'paciente').toLowerCase();
+
+  // Forzar cambio de contraseña si debe_cambiar_contrasena es true (ej. cuenta generada automáticamente con su CI)
+  const debeForzarCambio = Boolean(usuario?.debe_cambiar_contrasena);
+  const [modalPasswordAbierto, setModalPasswordAbierto] = useState(debeForzarCambio);
+
+  useEffect(() => {
+    if (debeForzarCambio) {
+      setModalPasswordAbierto(true);
+    }
+  }, [debeForzarCambio]);
 
   const secciones = obtenerMenuPorRol(rol);
 
@@ -518,6 +532,7 @@ export default function Sidebar({ onCerrarDrawer }) {
       <ModalCambiarContrasena
         abierto={modalPasswordAbierto}
         alCerrar={() => setModalPasswordAbierto(false)}
+        forzarCambio={debeForzarCambio}
       />
     </>
   );

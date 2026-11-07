@@ -8,8 +8,10 @@ import Alerta from '../../../compartido/componentes/Alerta';
 import LayoutPrincipal from '../../../compartido/layouts/LayoutPrincipal';
 import TablaExpandible from '../../../comun/componentes/TablaExpandible';
 import InsigniaEstadoPago from '../CU27_GestionarPagosReembolsos/InsigniaEstadoPago';
+import VistaSemanalAgenda, { obtenerDiasSemana } from './VistaSemanalAgenda';
 
 export default function PaginaAgendaCitas() {
+  const [modoVista, setModoVista] = useState('diaria'); // 'diaria' | 'semanal'
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
   const [citas, setCitas] = useState([]);
   const [cargando, setCargando] = useState(false);
@@ -54,9 +56,33 @@ export default function PaginaAgendaCitas() {
     }
   }, [esMedico]);
 
+  const cambiarDias = (dias) => {
+    const [y, m, d] = fecha.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() + dias);
+    const anio = dt.getFullYear();
+    const mes = String(dt.getMonth() + 1).padStart(2, '0');
+    const dia = String(dt.getDate()).padStart(2, '0');
+    setFecha(`${anio}-${mes}-${dia}`);
+  };
+
+  const irSemanaAnterior = () => cambiarDias(-7);
+  const irSemanaSiguiente = () => cambiarDias(7);
+  const irSemanaActual = () => setFecha(new Date().toISOString().split('T')[0]);
+
   const cargarAgenda = () => {
     setCargando(true);
-    let url = `/citas/agenda?fecha=${fecha}`;
+    let url = '/citas/agenda';
+
+    if (modoVista === 'semanal') {
+      const diasSemana = obtenerDiasSemana(fecha);
+      const fechaInicio = diasSemana[0]?.fecha;
+      const fechaFin = diasSemana[6]?.fecha;
+      url += `?fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`;
+    } else {
+      url += `?fecha=${fecha}`;
+    }
+
     if (idMedicoFiltro) {
       url += `&id_medico=${idMedicoFiltro}`;
     }
@@ -79,7 +105,7 @@ export default function PaginaAgendaCitas() {
 
   useEffect(() => {
     cargarAgenda();
-  }, [fecha, idEspecialidad, estadoFiltro, idMedicoFiltro]);
+  }, [fecha, idEspecialidad, estadoFiltro, idMedicoFiltro, modoVista]);
 
   // Acción rápida: Marcar presencia / asistencia / inasistencia
   const marcarAsistencia = async (idCita, nuevoEstado) => {
@@ -197,6 +223,11 @@ export default function PaginaAgendaCitas() {
     '',
   ];
 
+  const diasSemana = obtenerDiasSemana(fecha);
+  const textoRangoSemanal = diasSemana.length === 7
+    ? `Semana del ${diasSemana[0].nombre} ${diasSemana[0].diaNumero}/${diasSemana[0].mesNumero} al ${diasSemana[6].nombre} ${diasSemana[6].diaNumero}/${diasSemana[6].mesNumero}`
+    : '';
+
   return (
     <LayoutPrincipal>
       <div style={{ maxWidth: '1100px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
@@ -205,8 +236,105 @@ export default function PaginaAgendaCitas() {
             <b>Agenda</b> <span>de Citas Médicas</span>
           </h2>
           <p style={{ color: 'var(--texto-sec)', fontSize: '0.9rem' }}>
-            Control y seguimiento diario del flujo de atención de pacientes citados.
+            Control y seguimiento {modoVista === 'semanal' ? 'semanal' : 'diario'} del flujo de atención de pacientes citados.
           </p>
+        </div>
+
+        {/* Interruptor de Vista sobre los Filtros (CU-14) */}
+        <div
+          className="agenda-selector-vista"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+            marginBottom: '1rem',
+          }}
+        >
+          <div
+            style={{
+              display: 'inline-flex',
+              padding: '4px',
+              backgroundColor: '#E2ECEF',
+              borderRadius: '10px',
+              gap: '4px',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setModoVista('diaria')}
+              className={modoVista === 'diaria' ? 'boton-primario' : 'boton-terciario'}
+              style={{
+                minHeight: '44px',
+                padding: '0 1.15rem',
+                fontSize: '0.88rem',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: modoVista === 'diaria' ? 700 : 500,
+                backgroundColor: modoVista === 'diaria' ? '#0A6C84' : 'transparent',
+                color: modoVista === 'diaria' ? '#FFFFFF' : '#1C2D37',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              📄 Vista Diaria (Tabla)
+            </button>
+            <button
+              type="button"
+              onClick={() => setModoVista('semanal')}
+              className={modoVista === 'semanal' ? 'boton-primario' : 'boton-terciario'}
+              style={{
+                minHeight: '44px',
+                padding: '0 1.15rem',
+                fontSize: '0.88rem',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: modoVista === 'semanal' ? 700 : 500,
+                backgroundColor: modoVista === 'semanal' ? '#0A6C84' : 'transparent',
+                color: modoVista === 'semanal' ? '#FFFFFF' : '#1C2D37',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              📅 Vista Semanal (Cuadrícula)
+            </button>
+          </div>
+
+          {modoVista === 'semanal' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0A6C84', marginRight: '0.25rem' }}>
+                {textoRangoSemanal}
+              </span>
+              <button
+                type="button"
+                onClick={irSemanaAnterior}
+                className="boton-terciario"
+                style={{ minHeight: '44px', padding: '0 0.85rem', fontSize: '0.85rem' }}
+                title="Semana anterior"
+              >
+                ← Semana Anterior
+              </button>
+              <button
+                type="button"
+                onClick={irSemanaActual}
+                className="boton-terciario"
+                style={{ minHeight: '44px', padding: '0 0.85rem', fontSize: '0.85rem' }}
+                title="Volver a la semana actual"
+              >
+                Hoy
+              </button>
+              <button
+                type="button"
+                onClick={irSemanaSiguiente}
+                className="boton-terciario"
+                style={{ minHeight: '44px', padding: '0 0.85rem', fontSize: '0.85rem' }}
+                title="Semana siguiente"
+              >
+                Semana Siguiente →
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Barra de Filtros Dinámicos de Agenda (CU-14) */}
@@ -231,7 +359,7 @@ export default function PaginaAgendaCitas() {
           >
             <div style={{ width: '100%', boxSizing: 'border-box' }}>
               <CampoTexto
-                etiqueta="Fecha a Consultar"
+                etiqueta={modoVista === 'semanal' ? 'Fecha de la Semana a Consultar' : 'Fecha a Consultar'}
                 nombre="fecha"
                 tipo="date"
                 valor={fecha}
@@ -295,51 +423,189 @@ export default function PaginaAgendaCitas() {
 
         <Alerta tipo={alerta?.tipo} mensaje={alerta?.mensaje} />
 
-        {/* Tabla Responsiva Mobile-First con Acordeón Institucional */}
-        <div className="tarjeta" style={{ padding: 0, overflow: 'hidden' }}>
-          <TablaExpandible
-            columnas={columnasDesktop}
-            datos={citas}
-            cargando={cargando}
-            mensajeVacio={`No se registran citas para los filtros seleccionados (${fecha}).`}
-            obtenerClaveFila={(c) => c.id_cita}
-            renderFilaPrincipal={(c, isExpanded, toggleExpand) => (
-              <>
-                <td style={{ fontWeight: 700, color: 'var(--verde-azulado)' }}>
-                  {c.hora_inicio} - {c.hora_fin}
-                </td>
-                <td>
-                  <span className="badge-codigo-turquesa">{c.codigo_cita}</span>
-                </td>
-                <td>
-                  <strong>{c.paciente_apellidos}, {c.paciente_nombres}</strong>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--texto-sec)' }}>
-                    CI: {c.paciente_ci || 'S/N'} | Hist: {c.codigo_historia}
+        {/* Visualización de Agenda: Diaria (Tabla) vs Semanal (Cuadrícula) */}
+        {modoVista === 'diaria' ? (
+          <div className="tarjeta" style={{ padding: 0, overflow: 'hidden' }}>
+            <TablaExpandible
+              columnas={columnasDesktop}
+              datos={citas}
+              cargando={cargando}
+              mensajeVacio={`No se registran citas para los filtros seleccionados (${fecha}).`}
+              obtenerClaveFila={(c) => c.id_cita}
+              renderFilaPrincipal={(c, isExpanded, toggleExpand) => (
+                <>
+                  <td style={{ fontWeight: 700, color: 'var(--verde-azulado)' }}>
+                    {c.hora_inicio} - {c.hora_fin}
+                  </td>
+                  <td>
+                    <span className="badge-codigo-turquesa">{c.codigo_cita}</span>
+                  </td>
+                  <td>
+                    <strong>{c.paciente_apellidos}, {c.paciente_nombres}</strong>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--texto-sec)' }}>
+                      CI: {c.paciente_ci || 'S/N'} | Hist: {c.codigo_historia}
+                    </div>
+                  </td>
+                  <td>
+                    <div>{c.especialidad_nombre}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--texto-sec)' }}>
+                      Dr. {c.medico_apellidos}
+                    </div>
+                  </td>
+                  <td style={{ fontSize: '0.85rem' }}>
+                    {c.motivo_consulta || 'Consulta general'}
+                  </td>
+                  <td>
+                    <InsigniaEstado estado={c.estado_codigo} texto={c.estado_nombre} />
+                  </td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      {c.estado_codigo === 'pendiente' && (
+                        <button
+                          type="button"
+                          onClick={() => confirmarCita(c.id_cita)}
+                          className="boton-secundario"
+                          style={{ minHeight: '34px', padding: '0 0.6rem', fontSize: '0.8rem' }}
+                          title="Confirmar Cita"
+                        >
+                          Confirmar
+                        </button>
+                      )}
+
+                      {['pendiente', 'confirmada'].includes(c.estado_codigo) && (
+                        <button
+                          type="button"
+                          onClick={() => marcarAsistencia(c.id_cita, 'en_espera')}
+                          className="boton-primario"
+                          style={{ minHeight: '34px', padding: '0 0.6rem', fontSize: '0.8rem' }}
+                          title="Registrar presencia en sala de espera"
+                        >
+                          Presente
+                        </button>
+                      )}
+
+                      {esMedico && ['en_espera', 'confirmada', 'pendiente'].includes(c.estado_codigo) && (
+                        <Link
+                          to={`/historia-clinica/atencion/${c.id_cita}`}
+                          className="boton-primario"
+                          style={{ minHeight: '34px', padding: '0 0.6rem', fontSize: '0.8rem', backgroundColor: '#F28C1E' }}
+                        >
+                          Atender
+                        </Link>
+                      )}
+                    </div>
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <button
+                      type="button"
+                      className={`boton-chevron-expandir ${isExpanded ? 'rotado' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleExpand();
+                      }}
+                      aria-label="Ver detalles y acciones"
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                    </button>
+                  </td>
+                </>
+              )}
+              renderFilaMovil={(c, isExpanded, toggleExpand) => (
+                <div className="fila-resumen-movil">
+                  <div className="fila-resumen-movil-linea1">
+                    <div style={{ fontWeight: 700, color: '#0A6C84', fontSize: '0.95rem' }}>
+                      {c.hora_inicio} - {c.hora_fin}
+                    </div>
+                    <InsigniaEstado estado={c.estado_codigo} texto={c.estado_nombre} />
                   </div>
-                </td>
-                <td>
-                  <div>{c.especialidad_nombre}</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--texto-sec)' }}>
-                    Dr. {c.medico_apellidos}
+                  <div className="fila-resumen-movil-linea2">
+                    <div className="fila-resumen-movil-nombre">
+                      <span className="nombre-paciente-destacado">
+                        {c.paciente_apellidos}, {c.paciente_nombres}
+                      </span>
+                      <span className="ci-paciente-sub">
+                        {c.especialidad_nombre} • Dr. {c.medico_apellidos}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className={`boton-chevron-expandir ${isExpanded ? 'rotado' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleExpand();
+                      }}
+                      aria-label="Expandir opciones"
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                    </button>
                   </div>
-                </td>
-                <td style={{ fontSize: '0.85rem' }}>
-                  {c.motivo_consulta || 'Consulta general'}
-                </td>
-                <td>
-                  <InsigniaEstado estado={c.estado_codigo} texto={c.estado_nombre} />
-                </td>
-                <td onClick={(e) => e.stopPropagation()}>
-                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                </div>
+              )}
+              renderDetalle={(c) => (
+                <div>
+                  <div className="panel-detalle-grid">
+                    <div className="detalle-dato-item">
+                      <span className="detalle-etiqueta">Código de Cita</span>
+                      <span className="detalle-valor badge-codigo-turquesa" style={{ display: 'inline-block', width: 'fit-content' }}>
+                        {c.codigo_cita}
+                      </span>
+                    </div>
+                    <div className="detalle-dato-item">
+                      <span className="detalle-etiqueta">Canal de Reserva</span>
+                      <span className="detalle-valor">
+                        {c.canal === 'en_linea' ? '🌐 Autoservicio en Línea' : '🏢 Ventanilla / Recepción'}
+                      </span>
+                    </div>
+                    <div className="detalle-dato-item">
+                      <span className="detalle-etiqueta">Paciente / Contacto</span>
+                      <span className="detalle-valor">
+                        {c.paciente_apellidos}, {c.paciente_nombres} (Tel: {c.paciente_telefono || 'No registrado'})
+                      </span>
+                    </div>
+                    <div className="detalle-dato-item">
+                      <span className="detalle-etiqueta">Historial Clínico</span>
+                      <span className="detalle-valor">
+                        Código: {c.codigo_historia || 'S/N'} | CI: {c.paciente_ci || 'S/N'}
+                      </span>
+                    </div>
+                    <div className="detalle-dato-item">
+                      <span className="detalle-etiqueta">Motivo de Consulta</span>
+                      <span className="detalle-valor">
+                        {c.motivo_consulta || 'Sin motivo especificado'}
+                      </span>
+                    </div>
+                    <div className="detalle-dato-item">
+                      <span className="detalle-etiqueta">Garantía de Reserva</span>
+                      <span className="detalle-valor" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <InsigniaEstadoPago estado={c.estado_pago} monto={c.pago_monto || '50.00'} />
+                        {c.nro_transaccion && (
+                          <span style={{ fontSize: '0.8rem', color: '#64748B', fontFamily: 'monospace' }}>
+                            (Tx: {c.nro_transaccion})
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="detalle-dato-item">
+                      <span className="detalle-etiqueta">Observaciones / Historial</span>
+                      <span className="detalle-valor">
+                        {c.observaciones || 'Sin observaciones registradas'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Botonera de acciones apilada en móvil (min-height: 44px) */}
+                  <div className="panel-detalle-acciones">
                     {c.estado_codigo === 'pendiente' && (
                       <button
                         type="button"
                         onClick={() => confirmarCita(c.id_cita)}
                         className="boton-secundario"
-                        style={{ minHeight: '34px', padding: '0 0.6rem', fontSize: '0.8rem' }}
-                        title="Confirmar Cita"
                       >
-                        Confirmar
+                        ✓ Confirmar Cita
                       </button>
                     )}
 
@@ -348,201 +614,77 @@ export default function PaginaAgendaCitas() {
                         type="button"
                         onClick={() => marcarAsistencia(c.id_cita, 'en_espera')}
                         className="boton-primario"
-                        style={{ minHeight: '34px', padding: '0 0.6rem', fontSize: '0.8rem' }}
-                        title="Registrar presencia en sala de espera"
                       >
-                        Presente
+                        📍 Marcar Presente / En Sala
+                      </button>
+                    )}
+
+                    {['pendiente', 'confirmada', 'en_espera'].includes(c.estado_codigo) && (
+                      <button
+                        type="button"
+                        onClick={() => marcarAsistencia(c.id_cita, 'inasistencia')}
+                        className="boton-terciario"
+                        style={{ borderColor: '#E53E3E', color: '#E53E3E' }}
+                      >
+                        ✕ Marcar Inasistencia
                       </button>
                     )}
 
                     {esMedico && ['en_espera', 'confirmada', 'pendiente'].includes(c.estado_codigo) && (
                       <Link
                         to={`/historia-clinica/atencion/${c.id_cita}`}
-                        className="boton-primario"
-                        style={{ minHeight: '34px', padding: '0 0.6rem', fontSize: '0.8rem', backgroundColor: '#F28C1E' }}
+                        className="boton-primario btn-accion-destacado"
                       >
-                        Atender
+                        🩺 Iniciar Atención Médica
                       </Link>
                     )}
-                  </div>
-                </td>
-                <td style={{ textAlign: 'center' }}>
-                  <button
-                    type="button"
-                    className={`boton-chevron-expandir ${isExpanded ? 'rotado' : ''}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleExpand();
-                    }}
-                    aria-label="Ver detalles y acciones"
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
-                  </button>
-                </td>
-              </>
-            )}
-            renderFilaMovil={(c, isExpanded, toggleExpand) => (
-              <div className="fila-resumen-movil">
-                <div className="fila-resumen-movil-linea1">
-                  <div style={{ fontWeight: 700, color: '#0A6C84', fontSize: '0.95rem' }}>
-                    {c.hora_inicio} - {c.hora_fin}
-                  </div>
-                  <InsigniaEstado estado={c.estado_codigo} texto={c.estado_nombre} />
-                </div>
-                <div className="fila-resumen-movil-linea2">
-                  <div className="fila-resumen-movil-nombre">
-                    <span className="nombre-paciente-destacado">
-                      {c.paciente_apellidos}, {c.paciente_nombres}
-                    </span>
-                    <span className="ci-paciente-sub">
-                      {c.especialidad_nombre} • Dr. {c.medico_apellidos}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className={`boton-chevron-expandir ${isExpanded ? 'rotado' : ''}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleExpand();
-                    }}
-                    aria-label="Expandir opciones"
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            )}
-            renderDetalle={(c) => (
-              <div>
-                <div className="panel-detalle-grid">
-                  <div className="detalle-dato-item">
-                    <span className="detalle-etiqueta">Código de Cita</span>
-                    <span className="detalle-valor badge-codigo-turquesa" style={{ display: 'inline-block', width: 'fit-content' }}>
-                      {c.codigo_cita}
-                    </span>
-                  </div>
-                  <div className="detalle-dato-item">
-                    <span className="detalle-etiqueta">Canal de Reserva</span>
-                    <span className="detalle-valor">
-                      {c.canal === 'en_linea' ? '🌐 Autoservicio en Línea' : '🏢 Ventanilla / Recepción'}
-                    </span>
-                  </div>
-                  <div className="detalle-dato-item">
-                    <span className="detalle-etiqueta">Paciente / Contacto</span>
-                    <span className="detalle-valor">
-                      {c.paciente_apellidos}, {c.paciente_nombres} (Tel: {c.paciente_telefono || 'No registrado'})
-                    </span>
-                  </div>
-                  <div className="detalle-dato-item">
-                    <span className="detalle-etiqueta">Historial Clínico</span>
-                    <span className="detalle-valor">
-                      Código: {c.codigo_historia || 'S/N'} | CI: {c.paciente_ci || 'S/N'}
-                    </span>
-                  </div>
-                  <div className="detalle-dato-item">
-                    <span className="detalle-etiqueta">Motivo de Consulta</span>
-                    <span className="detalle-valor">
-                      {c.motivo_consulta || 'Sin motivo especificado'}
-                    </span>
-                  </div>
-                  <div className="detalle-dato-item">
-                    <span className="detalle-etiqueta">Garantía de Reserva</span>
-                    <span className="detalle-valor" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <InsigniaEstadoPago estado={c.estado_pago} monto={c.pago_monto || '50.00'} />
-                      {c.nro_transaccion && (
-                        <span style={{ fontSize: '0.8rem', color: '#64748B', fontFamily: 'monospace' }}>
-                          (Tx: {c.nro_transaccion})
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  <div className="detalle-dato-item">
-                    <span className="detalle-etiqueta">Observaciones / Historial</span>
-                    <span className="detalle-valor">
-                      {c.observaciones || 'Sin observaciones registradas'}
-                    </span>
-                  </div>
-                </div>
 
-                {/* Botonera de acciones apilada en móvil (min-height: 44px) */}
-                <div className="panel-detalle-acciones">
-                  {c.estado_codigo === 'pendiente' && (
-                    <button
-                      type="button"
-                      onClick={() => confirmarCita(c.id_cita)}
-                      className="boton-secundario"
-                    >
-                      ✓ Confirmar Cita
-                    </button>
-                  )}
-
-                  {['pendiente', 'confirmada'].includes(c.estado_codigo) && (
-                    <button
-                      type="button"
-                      onClick={() => marcarAsistencia(c.id_cita, 'en_espera')}
-                      className="boton-primario"
-                    >
-                      📍 Marcar Presente / En Sala
-                    </button>
-                  )}
-
-                  {['pendiente', 'confirmada', 'en_espera'].includes(c.estado_codigo) && (
-                    <button
-                      type="button"
-                      onClick={() => marcarAsistencia(c.id_cita, 'inasistencia')}
-                      className="boton-terciario"
-                      style={{ borderColor: '#E53E3E', color: '#E53E3E' }}
-                    >
-                      ✕ Marcar Inasistencia
-                    </button>
-                  )}
-
-                  {esMedico && ['en_espera', 'confirmada', 'pendiente'].includes(c.estado_codigo) && (
                     <Link
-                      to={`/historia-clinica/atencion/${c.id_cita}`}
-                      className="boton-primario btn-accion-destacado"
+                      to={`/historia-clinica/${c.id_paciente}`}
+                      className="boton-terciario"
                     >
-                      🩺 Iniciar Atención Médica
+                      📋 Ver Historial Clínico
                     </Link>
-                  )}
 
-                  <Link
-                    to={`/historia-clinica/${c.id_paciente}`}
-                    className="boton-terciario"
-                  >
-                    📋 Ver Historial Clínico
-                  </Link>
+                    {['pendiente', 'confirmada', 'en_espera'].includes(c.estado_codigo) && (
+                      <button
+                        type="button"
+                        onClick={() => abrirModalCancelar(c)}
+                        className="boton-peligro"
+                      >
+                        🗑️ Cancelar Cita
+                      </button>
+                    )}
 
-                  {['pendiente', 'confirmada', 'en_espera'].includes(c.estado_codigo) && (
-                    <button
-                      type="button"
-                      onClick={() => abrirModalCancelar(c)}
-                      className="boton-peligro"
-                    >
-                      🗑️ Cancelar Cita
-                    </button>
-                  )}
-
-                  {/* Corrección administrativa para Administrador en citas cerradas */}
-                  {esAdmin && ['atendida', 'inasistencia'].includes(c.estado_codigo) && (
-                    <button
-                      type="button"
-                      onClick={() => abrirModalCorreccionRN16(c)}
-                      className="boton-secundario"
-                      style={{ border: '2px solid #0A6C84', fontWeight: 700 }}
-                    >
-                      ⚙️ Corrección Administrativa
-                    </button>
-                  )}
+                    {/* Corrección administrativa para Administrador en citas cerradas */}
+                    {esAdmin && ['atendida', 'inasistencia'].includes(c.estado_codigo) && (
+                      <button
+                        type="button"
+                        onClick={() => abrirModalCorreccionRN16(c)}
+                        className="boton-secundario"
+                        style={{ border: '2px solid #0A6C84', fontWeight: 700 }}
+                      >
+                        ⚙️ Corrección Administrativa
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            />
+          </div>
+        ) : (
+          <VistaSemanalAgenda
+            citas={citas}
+            fechaReferencia={fecha}
+            cargando={cargando}
+            esMedico={esMedico}
+            esAdmin={esAdmin}
+            alConfirmarCita={confirmarCita}
+            alMarcarAsistencia={marcarAsistencia}
+            alAbrirModalCancelar={abrirModalCancelar}
+            alAbrirModalCorreccionRN16={abrirModalCorreccionRN16}
           />
-        </div>
+        )}
 
         {/* MODAL 1: Cancelación Lógica de Cita */}
         {citaCancelar && (
