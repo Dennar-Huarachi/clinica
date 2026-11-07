@@ -98,11 +98,19 @@ export default function PaginaUsuariosRoles() {
     setErrores({});
 
     try {
+      const payload = {
+        ...formulario,
+        id_rol: Number(formulario.id_rol),
+      };
+      if (usuarioEditando && !payload.contrasena) {
+        delete payload.contrasena;
+      }
+
       if (usuarioEditando) {
-        await api.put(`/administracion/usuarios/${usuarioEditando.id_usuario}`, formulario);
+        await api.put(`/administracion/usuarios/${usuarioEditando.id_usuario}`, payload);
         setAlerta({ tipo: 'exito', mensaje: 'Usuario actualizado satisfactoriamente.' });
       } else {
-        await api.post('/administracion/usuarios', formulario);
+        await api.post('/administracion/usuarios', payload);
         setAlerta({ tipo: 'exito', mensaje: 'Usuario creado satisfactoriamente.' });
       }
       setModalAbierto(false);

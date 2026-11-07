@@ -50,8 +50,37 @@ class AdministrarUsuariosRolesServicio
         return $this->obtenerRolesConConteo();
     }
 
+    /**
+     * Garantiza de forma idempotente y autorreparable los permisos del sistema si la tabla estuviese vacía.
+     */
+    private function garantizarPermisosIniciales(): void
+    {
+        try {
+            $totalPermisos = DB::table('permisos')->count();
+            if ($totalPermisos === 0) {
+                $seeder = new \Database\Seeders\PermisosSeeder();
+                $seeder->run();
+                return;
+            }
+
+            // Si los permisos existen pero el rol administrador tiene 0 permisos asignados, re-vincularlos
+            $adminRol = DB::table('roles')->where('nombre', 'administrador')->first();
+            if ($adminRol) {
+                $tienePermisos = DB::table('rol_permiso')->where('id_rol', $adminRol->id_rol)->exists();
+                if (!$tienePermisos) {
+                    $seeder = new \Database\Seeders\PermisosSeeder();
+                    $seeder->run();
+                }
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
     public function obtenerRolesConConteo(): array
     {
+        $this->garantizarPermisosIniciales();
+
         return DB::table('roles')
             ->leftJoin('rol_permiso', 'roles.id_rol', '=', 'rol_permiso.id_rol')
             ->select(
@@ -103,6 +132,8 @@ class AdministrarUsuariosRolesServicio
 
     public function obtenerPermisosRol(int $idRol): array
     {
+        $this->garantizarPermisosIniciales();
+
         $rol = DB::table('roles')->where('id_rol', $idRol)->first();
         if (!$rol) {
             throw new \Exception('El rol solicitado no existe.', 404);
@@ -123,7 +154,7 @@ class AdministrarUsuariosRolesServicio
         $modulos = [];
         foreach ($permisos as $p) {
             $item = [
-                'id_permiso' => $p->id_permiso,
+                'id_permiso' => (int)$p->id_permiso,
                 'modulo' => $p->modulo,
                 'nombre' => $p->nombre,
                 'slug' => $p->slug,
@@ -148,7 +179,13 @@ class AdministrarUsuariosRolesServicio
             throw new \Exception('El rol solicitado no existe.', 404);
         }
 
-        DB::transaction(function () use ($idRol, $rol, $permisosIds) {
+        // Filtrar únicamente los IDs de permisos que existan realmente en el catálogo
+        $validos = DB::table('permisos')
+            ->whereIn('id_permiso', array_map('intval', $permisosIds))
+            ->pluck('id_permiso')
+            ->toArray();
+
+        DB::transaction(function () use ($idRol, $rol, $validos) {
             $anteriores = DB::table('rol_permiso')
                 ->where('id_rol', $idRol)
                 ->pluck('id_permiso')
@@ -157,7 +194,7 @@ class AdministrarUsuariosRolesServicio
             DB::table('rol_permiso')->where('id_rol', $idRol)->delete();
 
             $insertar = [];
-            foreach ($permisosIds as $idPermiso) {
+            foreach ($validos as $idPermiso) {
                 $insertar[] = [
                     'id_rol' => $idRol,
                     'id_permiso' => (int)$idPermiso,
@@ -176,7 +213,7 @@ class AdministrarUsuariosRolesServicio
                 'rol_permiso',
                 (string)$idRol,
                 ['rol' => $rol->nombre, 'permisos' => $anteriores],
-                ['rol' => $rol->nombre, 'permisos' => $permisosIds]
+                ['rol' => $rol->nombre, 'permisos' => $validos]
             );
         });
     }
@@ -184,27 +221,85 @@ class AdministrarUsuariosRolesServicio
     public function crear(array $datos): int
     {
         return DB::transaction(function () use ($datos) {
-            $idPersona = DB::table('personas')->insertGetId([
-                'ci' => $datos['ci'],
-                'nombres' => $datos['nombres'],
-                'apellidos' => $datos['apellidos'],
-                'telefono' => $datos['telefono'] ?? null,
-                'correo' => $datos['correo'],
-                'created_at' => now(),
-                'updated_at' => now(),
-            ], 'id_persona');
+            // Sincronizar secuencias primarias en PostgreSQL si el catálogo previo desfasó el serial
+            if (DB::getDriverName() === 'pgsql') {
+                try {
+                    DB::statement("SELECT setval(pg_get_serial_sequence('personas', 'id_persona'), COALESCE((SELECT MAX(id_persona) FROM personas), 1))");
+                    DB::statement("SELECT setval(pg_get_serial_sequence('usuarios', 'id_usuario'), COALESCE((SELECT MAX(id_usuario) FROM usuarios), 1))");
+                } catch (\Throwable) {}
+            }
 
+            // 1. Validar nombre de usuario único
+            if (DB::table('usuarios')->where('nombre_usuario', trim($datos['nombre_usuario']))->exists()) {
+                throw new \Exception("El nombre de usuario '{$datos['nombre_usuario']}' ya se encuentra registrado.", 422);
+            }
+
+            // 2. Validar correo electrónico único en usuarios
+            if (DB::table('usuarios')->where('correo', trim($datos['correo']))->exists()) {
+                throw new \Exception("El correo '{$datos['correo']}' ya se encuentra registrado por otro usuario.", 422);
+            }
+
+            // 3. Gestionar persona: reutilizar si ya existe por CI o crear una nueva
+            $personaExistente = DB::table('personas')->where('ci', trim($datos['ci']))->first();
+            if ($personaExistente) {
+                // Verificar si esta persona ya tiene un usuario vinculado
+                $cuentaVinculada = DB::table('usuarios')->where('id_persona', $personaExistente->id_persona)->first();
+                if ($cuentaVinculada) {
+                    throw new \Exception("El CI {$datos['ci']} ya está asociado a la cuenta de usuario @{$cuentaVinculada->nombre_usuario}.", 422);
+                }
+
+                $idPersona = $personaExistente->id_persona;
+                DB::table('personas')->where('id_persona', $idPersona)->update([
+                    'nombres' => $datos['nombres'],
+                    'apellidos' => $datos['apellidos'],
+                    'telefono' => $datos['telefono'] ?? $personaExistente->telefono,
+                    'correo' => $datos['correo'] ?? $personaExistente->correo,
+                    'updated_at' => now(),
+                ]);
+            } else {
+                $idPersona = DB::table('personas')->insertGetId([
+                    'ci' => trim($datos['ci']),
+                    'nombres' => $datos['nombres'],
+                    'apellidos' => $datos['apellidos'],
+                    'telefono' => $datos['telefono'] ?? null,
+                    'correo' => trim($datos['correo']),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ], 'id_persona');
+            }
+
+            // 4. Crear usuario con tipos de datos estrictos para PostgreSQL (boolean estricto)
             $idUsuario = DB::table('usuarios')->insertGetId([
                 'id_persona' => $idPersona,
-                'id_rol' => $datos['id_rol'],
-                'nombre_usuario' => $datos['nombre_usuario'],
-                'correo' => $datos['correo'],
+                'id_rol' => (int)$datos['id_rol'],
+                'nombre_usuario' => trim($datos['nombre_usuario']),
+                'correo' => trim($datos['correo']),
                 'contrasena_hash' => Hash::make($datos['contrasena']),
                 'debe_cambiar_contrasena' => true,
                 'estado' => $datos['estado'] ?? 'activo',
                 'created_at' => now(),
                 'updated_at' => now(),
             ], 'id_usuario');
+
+            // 5. Si el rol es 'medico', garantizar que exista su registro en la tabla medicos
+            $rol = DB::table('roles')->where('id_rol', $datos['id_rol'])->value('nombre');
+            if (strtolower((string)$rol) === 'medico') {
+                $existeMedico = DB::table('medicos')->where('id_persona', $idPersona)->exists();
+                if (!$existeMedico) {
+                    if (DB::getDriverName() === 'pgsql') {
+                        try {
+                            DB::statement("SELECT setval(pg_get_serial_sequence('medicos', 'id_medico'), COALESCE((SELECT MAX(id_medico) FROM medicos), 1))");
+                        } catch (\Throwable) {}
+                    }
+                    DB::table('medicos')->insert([
+                        'id_persona' => $idPersona,
+                        'matricula_profesional' => 'MP-' . trim($datos['ci']),
+                        'estado' => 'activo',
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
 
             ServicioBitacora::registrar(
                 'CU04_AdministrarUsuariosRoles',
@@ -227,27 +322,50 @@ class AdministrarUsuariosRolesServicio
                 throw new \Exception('Usuario no encontrado', 404);
             }
 
+            // Verificar si el correo ya está en uso por otro usuario
+            if (isset($datos['correo']) && trim($datos['correo']) !== $usuario->correo) {
+                $otroUsuario = DB::table('usuarios')
+                    ->where('correo', trim($datos['correo']))
+                    ->where('id_usuario', '!=', $idUsuario)
+                    ->exists();
+                if ($otroUsuario) {
+                    throw new \Exception("El correo '{$datos['correo']}' ya se encuentra registrado por otro usuario.", 422);
+                }
+            }
+
+            // Verificar si el nombre_usuario ya está en uso por otro usuario
+            if (isset($datos['nombre_usuario']) && trim($datos['nombre_usuario']) !== $usuario->nombre_usuario) {
+                $otroNombre = DB::table('usuarios')
+                    ->where('nombre_usuario', trim($datos['nombre_usuario']))
+                    ->where('id_usuario', '!=', $idUsuario)
+                    ->exists();
+                if ($otroNombre) {
+                    throw new \Exception("El nombre de usuario '{$datos['nombre_usuario']}' ya está en uso.", 422);
+                }
+            }
+
             // Actualizar persona
             DB::table('personas')->where('id_persona', $usuario->id_persona)->update([
-                'ci' => $datos['ci'],
+                'ci' => trim($datos['ci']),
                 'nombres' => $datos['nombres'],
                 'apellidos' => $datos['apellidos'],
                 'telefono' => $datos['telefono'] ?? null,
-                'correo' => $datos['correo'],
+                'correo' => trim($datos['correo']),
                 'updated_at' => now(),
             ]);
 
             // Actualizar usuario
             $updateUsuario = [
-                'id_rol' => $datos['id_rol'],
-                'nombre_usuario' => $datos['nombre_usuario'],
-                'correo' => $datos['correo'],
+                'id_rol' => (int)$datos['id_rol'],
+                'nombre_usuario' => trim($datos['nombre_usuario']),
+                'correo' => trim($datos['correo']),
                 'estado' => $datos['estado'] ?? $usuario->estado,
                 'updated_at' => now(),
             ];
 
             if (!empty($datos['contrasena'])) {
                 $updateUsuario['contrasena_hash'] = Hash::make($datos['contrasena']);
+                $updateUsuario['debe_cambiar_contrasena'] = true;
             }
 
             DB::table('usuarios')->where('id_usuario', $idUsuario)->update($updateUsuario);

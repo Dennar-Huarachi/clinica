@@ -17,22 +17,33 @@ export default function PaginaAuditoria() {
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
 
-  const cargarBitacora = async () => {
+  const cargarBitacora = async (filtrosSobrescritos = null) => {
     setCargando(true);
     setAlerta(null);
 
+    const u = filtrosSobrescritos ? filtrosSobrescritos.usuario : usuarioFiltro;
+    const a = filtrosSobrescritos ? filtrosSobrescritos.accion : accionFiltro;
+    const c = filtrosSobrescritos ? filtrosSobrescritos.casoUso : casoUsoFiltro;
+    const t = filtrosSobrescritos ? filtrosSobrescritos.tabla : tablaFiltro;
+    const fi = filtrosSobrescritos ? filtrosSobrescritos.fechaInicio : fechaInicio;
+    const ff = filtrosSobrescritos ? filtrosSobrescritos.fechaFin : fechaFin;
+
     const params = new URLSearchParams();
-    if (usuarioFiltro.trim()) params.append('usuario', usuarioFiltro.trim());
-    if (accionFiltro.trim()) params.append('accion', accionFiltro.trim());
-    if (casoUsoFiltro.trim()) params.append('caso_uso', casoUsoFiltro.trim());
-    if (tablaFiltro.trim()) params.append('tabla_afectada', tablaFiltro.trim());
-    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
-    if (fechaFin) params.append('fecha_fin', fechaFin);
+    if (u && u.trim()) params.append('usuario', u.trim());
+    if (a && a.trim()) params.append('accion', a.trim());
+    if (c && c.trim()) params.append('caso_uso', c.trim());
+    if (t && t.trim()) params.append('tabla_afectada', t.trim());
+    if (fi) params.append('fecha_inicio', fi);
+    if (ff) params.append('fecha_fin', ff);
     params.append('limite', '200');
 
     try {
-      // Endpoint oficial /auditoria con fallback a /auditoria/bitacora
-      const res = await api.get(`/auditoria?${params.toString()}`).catch(() => api.get(`/auditoria/bitacora?${params.toString()}`));
+      let res;
+      try {
+        res = await api.get(`/auditoria?${params.toString()}`);
+      } catch (ePrimario) {
+        res = await api.get(`/auditoria/bitacora?${params.toString()}`);
+      }
       setRegistros(res.data?.datos || []);
     } catch (err) {
       setAlerta({
@@ -42,6 +53,23 @@ export default function PaginaAuditoria() {
     } finally {
       setCargando(false);
     }
+  };
+
+  const handleLimpiarFiltros = () => {
+    setUsuarioFiltro('');
+    setAccionFiltro('');
+    setCasoUsoFiltro('');
+    setTablaFiltro('');
+    setFechaInicio('');
+    setFechaFin('');
+    cargarBitacora({
+      usuario: '',
+      accion: '',
+      casoUso: '',
+      tabla: '',
+      fechaInicio: '',
+      fechaFin: '',
+    });
   };
 
   useEffect(() => {
@@ -216,14 +244,7 @@ export default function PaginaAuditoria() {
               <button
                 type="button"
                 className="boton-secundario audi-btn"
-                onClick={() => {
-                  setUsuarioFiltro('');
-                  setAccionFiltro('');
-                  setCasoUsoFiltro('');
-                  setTablaFiltro('');
-                  setFechaInicio('');
-                  setFechaFin('');
-                }}
+                onClick={handleLimpiarFiltros}
               >
                 Limpiar Criterios
               </button>

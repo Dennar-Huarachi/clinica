@@ -27,10 +27,15 @@ export default function MatrizRolesPermisos() {
       const listado = res.data?.datos || [];
       setRoles(listado);
 
-      if (rolIdASeleccionar) {
-        setRolSeleccionadoId(String(rolIdASeleccionar));
-      } else if (!rolSeleccionadoId && listado.length > 0) {
-        setRolSeleccionadoId(String(listado[0].id_rol));
+      let targetId = rolIdASeleccionar;
+      if (!targetId) {
+        targetId = rolSeleccionadoId || (listado.length > 0 ? String(listado[0].id_rol) : '');
+      }
+
+      setRolSeleccionadoId(String(targetId));
+
+      if (targetId) {
+        await cargarPermisosDelRol(targetId);
       }
     } catch (err) {
       setAlerta({
@@ -57,14 +62,16 @@ export default function MatrizRolesPermisos() {
       const modulos = datos.modulos || {};
       setModulosPermisos(modulos);
 
-      // Poblar el set de permisos asignados
+      // Poblar el set de permisos asignados con IDs numéricos consistentes
       const asignados = new Set();
       Object.values(modulos).forEach((listaPermisos) => {
-        listaPermisos.forEach((p) => {
-          if (p.asignado) {
-            asignados.add(p.id_permiso);
-          }
-        });
+        if (Array.isArray(listaPermisos)) {
+          listaPermisos.forEach((p) => {
+            if (p && p.asignado) {
+              asignados.add(Number(p.id_permiso));
+            }
+          });
+        }
       });
       setPermisosSeleccionados(asignados);
     } catch (err) {
@@ -77,20 +84,23 @@ export default function MatrizRolesPermisos() {
     }
   };
 
-  useEffect(() => {
-    if (rolSeleccionadoId) {
-      cargarPermisosDelRol(rolSeleccionadoId);
+  const handleSeleccionarRol = (e) => {
+    const nuevoId = e.target.value;
+    setRolSeleccionadoId(nuevoId);
+    if (nuevoId) {
+      cargarPermisosDelRol(nuevoId);
     }
-  }, [rolSeleccionadoId]);
+  };
 
   // Alternar checkbox de permiso individual
   const togglePermiso = (idPermiso) => {
+    const id = Number(idPermiso);
     setPermisosSeleccionados((prev) => {
       const nuevo = new Set(prev);
-      if (nuevo.has(idPermiso)) {
-        nuevo.delete(idPermiso);
+      if (nuevo.has(id)) {
+        nuevo.delete(id);
       } else {
-        nuevo.add(idPermiso);
+        nuevo.add(id);
       }
       return nuevo;
     });
@@ -99,15 +109,16 @@ export default function MatrizRolesPermisos() {
   // Alternar todos los permisos de un módulo
   const toggleModuloCompleto = (nombreModulo) => {
     const permisosDelModulo = modulosPermisos[nombreModulo] || [];
-    const todosAsignados = permisosDelModulo.every((p) => permisosSeleccionados.has(p.id_permiso));
+    const todosAsignados = permisosDelModulo.length > 0 && permisosDelModulo.every((p) => permisosSeleccionados.has(Number(p.id_permiso)));
 
     setPermisosSeleccionados((prev) => {
       const nuevo = new Set(prev);
       permisosDelModulo.forEach((p) => {
+        const id = Number(p.id_permiso);
         if (todosAsignados) {
-          nuevo.delete(p.id_permiso);
+          nuevo.delete(id);
         } else {
-          nuevo.add(p.id_permiso);
+          nuevo.add(id);
         }
       });
       return nuevo;
@@ -121,7 +132,7 @@ export default function MatrizRolesPermisos() {
     setAlerta(null);
 
     try {
-      const arrayPermisos = Array.from(permisosSeleccionados);
+      const arrayPermisos = Array.from(permisosSeleccionados).map(Number);
       await api.put(`/admin/roles/${rolSeleccionadoId}/permisos`, {
         permisos: arrayPermisos,
       });
@@ -154,7 +165,7 @@ export default function MatrizRolesPermisos() {
           <select
             id="selector-rol-matriz"
             value={rolSeleccionadoId}
-            onChange={(e) => setRolSeleccionadoId(e.target.value)}
+            onChange={handleSeleccionarRol}
             className="matriz-dropdown-rol"
             disabled={cargandoRoles || guardando}
           >
@@ -205,10 +216,25 @@ export default function MatrizRolesPermisos() {
         <div className="matriz-cargando-estado">
           <span className="spinner-clinico" /> Cargando catálogo modular de permisos…
         </div>
+      ) : Object.keys(modulosPermisos).length === 0 ? (
+        <div className="matriz-vacia-estado">
+          <span style={{ fontSize: '2.5rem' }}>🛡️</span>
+          <h3 style={{ margin: '0.5rem 0', color: '#1e293b' }}>Catálogo de Permisos Pendiente de Carga</h3>
+          <p style={{ color: '#64748b', fontSize: '0.9rem', maxWidth: '420px', margin: '0 auto 1rem' }}>
+            No se encontraron módulos de permisos asociados a este rol en la base de datos.
+          </p>
+          <button
+            type="button"
+            className="boton-institucional-secundario"
+            onClick={() => cargarRoles(rolSeleccionadoId)}
+          >
+            🔄 Recargar y Sincronizar Permisos
+          </button>
+        </div>
       ) : (
         <div className="matriz-grid-modulos">
           {Object.entries(modulosPermisos).map(([nombreModulo, items]) => {
-            const activosCount = items.filter((p) => permisosSeleccionados.has(p.id_permiso)).length;
+            const activosCount = items.filter((p) => permisosSeleccionados.has(Number(p.id_permiso))).length;
             const totalCount = items.length;
             const todosMarcados = activosCount === totalCount && totalCount > 0;
 
@@ -239,7 +265,7 @@ export default function MatrizRolesPermisos() {
                 {/* Lista de Checkboxes de Permisos */}
                 <div className="modulo-lista-permisos">
                   {items.map((permiso) => {
-                    const checked = permisosSeleccionados.has(permiso.id_permiso);
+                    const checked = permisosSeleccionados.has(Number(permiso.id_permiso));
                     return (
                       <label
                         key={permiso.id_permiso}
@@ -248,7 +274,7 @@ export default function MatrizRolesPermisos() {
                         <input
                           type="checkbox"
                           checked={checked}
-                          onChange={() => togglePermiso(permiso.id_permiso)}
+                          onChange={() => togglePermiso(Number(permiso.id_permiso))}
                           className="checkbox-turquesa"
                         />
                         <div className="permiso-info-texto">
@@ -405,6 +431,15 @@ export default function MatrizRolesPermisos() {
           padding: 40px;
           color: #5A7184;
           font-size: 14px;
+        }
+
+        .matriz-vacia-estado {
+          text-align: center;
+          padding: 48px 24px;
+          background: #FFFFFF;
+          border: 1px dashed #CBD5E1;
+          border-radius: 12px;
+          color: #5A7184;
         }
 
         .spinner-clinico {

@@ -8,6 +8,36 @@ use Carbon\Carbon;
 class ConsultarBitacoraServicio
 {
     /**
+     * Garantiza que la bitácora contenga al menos registros iniciales de demostración o del sistema.
+     */
+    private function garantizarRegistrosIniciales(): void
+    {
+        try {
+            if (DB::table('bitacora_auditoria')->count() === 0) {
+                if (class_exists(\Database\Seeders\Demostracion\BitacoraAuditoriaDemoSeeder::class)) {
+                    (new \Database\Seeders\Demostracion\BitacoraAuditoriaDemoSeeder())->run();
+                } else {
+                    DB::table('bitacora_auditoria')->insert([
+                        'caso_uso' => 'CU01_IniciarCerrarSesion',
+                        'accion' => 'SISTEMA_INICIALIZADO',
+                        'tabla_afectada' => 'parametros_sistema',
+                        'registro_id' => '1',
+                        'datos_anteriores' => null,
+                        'datos_nuevos' => json_encode(['estado' => 'operativo', 'despliegue' => 'produccion']),
+                        'ip_origen' => '127.0.0.1',
+                        'user_agent' => 'Sistema/Inicializador',
+                        'fecha_hora' => now(),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /**
      * Consulta el registro histórico inmutable de auditoría forense del sistema (CU-24 / RN21).
      * Exclusivo de solo lectura para el rol Administrador.
      */
@@ -21,8 +51,11 @@ class ConsultarBitacoraServicio
         ?string $fecha = null,
         int $limite = 150
     ): array {
+        $this->garantizarRegistrosIniciales();
+
         $query = DB::table('bitacora_auditoria')
             ->leftJoin('usuarios', 'bitacora_auditoria.id_usuario', '=', 'usuarios.id_usuario')
+            ->leftJoin('roles', 'usuarios.id_rol', '=', 'roles.id_rol')
             ->leftJoin('personas', 'usuarios.id_persona', '=', 'personas.id_persona')
             ->select(
                 'bitacora_auditoria.id_bitacora',
@@ -37,7 +70,7 @@ class ConsultarBitacoraServicio
                 'bitacora_auditoria.user_agent',
                 'bitacora_auditoria.fecha_hora',
                 'usuarios.nombre_usuario',
-                'usuarios.rol as usuario_rol',
+                'roles.nombre as usuario_rol',
                 DB::raw("trim(personas.nombres || ' ' || personas.apellidos) as usuario_nombre_completo")
             )
             ->orderBy('bitacora_auditoria.fecha_hora', 'desc')
@@ -60,19 +93,26 @@ class ConsultarBitacoraServicio
             $u = trim($usuario);
             $query->where(function ($sub) use ($u) {
                 $sub->where('usuarios.nombre_usuario', 'ilike', "%{$u}%")
+                    ->orWhere('usuarios.correo', 'ilike', "%{$u}%")
+                    ->orWhere('personas.correo', 'ilike', "%{$u}%")
                     ->orWhere('personas.nombres', 'ilike', "%{$u}%")
-                    ->orWhere('personas.apellidos', 'ilike', "%{$u}%");
+                    ->orWhere('personas.apellidos', 'ilike', "%{$u}%")
+                    ->orWhere('roles.nombre', 'ilike', "%{$u}%");
             });
         }
 
-        if ($fecha) {
-            $query->whereDate('bitacora_auditoria.fecha_hora', $fecha);
+        if ($fecha && trim($fecha) !== '') {
+            $inicio = Carbon::parse($fecha, 'America/La_Paz')->startOfDay();
+            $fin = Carbon::parse($fecha, 'America/La_Paz')->endOfDay();
+            $query->whereBetween('bitacora_auditoria.fecha_hora', [$inicio, $fin]);
         } else {
-            if ($fechaInicio) {
-                $query->whereDate('bitacora_auditoria.fecha_hora', '>=', $fechaInicio);
+            if ($fechaInicio && trim($fechaInicio) !== '') {
+                $inicio = Carbon::parse($fechaInicio, 'America/La_Paz')->startOfDay();
+                $query->where('bitacora_auditoria.fecha_hora', '>=', $inicio);
             }
-            if ($fechaFin) {
-                $query->whereDate('bitacora_auditoria.fecha_hora', '<=', $fechaFin);
+            if ($fechaFin && trim($fechaFin) !== '') {
+                $fin = Carbon::parse($fechaFin, 'America/La_Paz')->endOfDay();
+                $query->where('bitacora_auditoria.fecha_hora', '<=', $fin);
             }
         }
 

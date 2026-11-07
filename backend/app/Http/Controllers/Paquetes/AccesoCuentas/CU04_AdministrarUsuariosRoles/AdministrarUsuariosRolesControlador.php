@@ -80,7 +80,8 @@ class AdministrarUsuariosRolesControlador extends Controller
             $id = $this->servicio->crear($request->validated());
             return RespuestaApi::exito(['id_usuario' => $id], 'Usuario creado satisfactoriamente', 201);
         } catch (\Exception $e) {
-            return RespuestaApi::error('Error al crear usuario: ' . $e->getMessage(), 400);
+            $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
+            return RespuestaApi::error('Error al crear usuario: ' . $e->getMessage(), $codigo);
         }
     }
 
@@ -90,7 +91,8 @@ class AdministrarUsuariosRolesControlador extends Controller
             $this->servicio->actualizar($id, $request->validated());
             return RespuestaApi::exito(null, 'Usuario actualizado satisfactoriamente');
         } catch (\Exception $e) {
-            return RespuestaApi::error('Error al actualizar usuario: ' . $e->getMessage(), 400);
+            $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
+            return RespuestaApi::error('Error al actualizar usuario: ' . $e->getMessage(), $codigo);
         }
     }
 

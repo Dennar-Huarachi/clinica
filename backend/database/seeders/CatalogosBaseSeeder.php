@@ -100,6 +100,9 @@ class CatalogosBaseSeeder extends Seeder
                 ]
             );
         }
+
+        // 4. Catálogo de Permisos del Sistema y Asignación Base (CU-04)
+        $this->call(PermisosSeeder::class);
     }
 }
 
