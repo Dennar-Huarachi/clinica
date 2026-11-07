@@ -16,6 +16,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Confianza en proxies para Render / Entornos en la nube (HTTPS)
+        $middleware->trustProxies(at: '*');
+
         // Cabeceras HTTP de Seguridad globales (OWASP Top 10)
         $middleware->append(\App\Http\Middleware\CabecerasSeguridad::class);
 
