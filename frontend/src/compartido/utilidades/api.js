@@ -1,8 +1,14 @@
 import axios from 'axios';
 
+// Obtener la URL base desde las variables de entorno de Vite con sanitización de prefijo
+const rawBaseURL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api').trim().replace(/\/+$/, '');
+
+// Garantizar que siempre apunte al prefijo /api requerido por el backend sin duplicarlo
+const apiBaseURL = rawBaseURL.endsWith('/api') ? rawBaseURL : `${rawBaseURL}/api`;
+
 // Instancia de axios para comunicarse con la API del backend (Laravel).
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: apiBaseURL,
 });
 
 // Interceptor de peticiones: adjuntar token Bearer si existe en localStorage
