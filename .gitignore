@@ -9,7 +9,9 @@ frontend/.env
 Thumbs.db
 .DS_Store
 
-# Documentación interna excluida
-docs/
-*.md
-!README.md
+/docs/
+/scripts/
+/casos-de-uso-citas-medicas-vida-salud-*.md
+/contexto-proyecto-citas-medicas-vida-salud-*.md
+/estructura-proyecto.md
+/guia-diseno-sitio-web.md
