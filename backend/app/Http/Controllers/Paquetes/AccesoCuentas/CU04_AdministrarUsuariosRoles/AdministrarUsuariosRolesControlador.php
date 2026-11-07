@@ -18,17 +18,27 @@ class AdministrarUsuariosRolesControlador extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $usuarios = $this->servicio->listar(
-            $request->query('termino'),
-            $request->query('rol')
-        );
+        try {
+            $usuarios = $this->servicio->listar(
+                $request->query('termino'),
+                $request->query('rol')
+            );
 
-        return RespuestaApi::exito($usuarios);
+            return RespuestaApi::exito($usuarios);
+        } catch (\Throwable $e) {
+            report($e);
+            return RespuestaApi::error('Error al listar usuarios: ' . $e->getMessage(), 500);
+        }
     }
 
     public function roles(): JsonResponse
     {
-        return RespuestaApi::exito($this->servicio->obtenerRolesConConteo());
+        try {
+            return RespuestaApi::exito($this->servicio->obtenerRolesConConteo());
+        } catch (\Throwable $e) {
+            report($e);
+            return RespuestaApi::error('Error al obtener roles: ' . $e->getMessage(), 500);
+        }
     }
 
     public function crearRol(Request $request): JsonResponse
@@ -41,7 +51,8 @@ class AdministrarUsuariosRolesControlador extends Controller
         try {
             $id = $this->servicio->crearRol($validados);
             return RespuestaApi::exito(['id_rol' => $id], 'Rol creado satisfactoriamente', 201);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            report($e);
             $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
             return RespuestaApi::error($e->getMessage(), $codigo);
         }
@@ -52,7 +63,8 @@ class AdministrarUsuariosRolesControlador extends Controller
         try {
             $datos = $this->servicio->obtenerPermisosRol($id);
             return RespuestaApi::exito($datos);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            report($e);
             $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
             return RespuestaApi::error($e->getMessage(), $codigo);
         }
@@ -68,7 +80,8 @@ class AdministrarUsuariosRolesControlador extends Controller
         try {
             $this->servicio->sincronizarPermisosRol($id, $permisosIds);
             return RespuestaApi::exito(null, 'Permisos del rol sincronizados correctamente');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            report($e);
             $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
             return RespuestaApi::error($e->getMessage(), $codigo);
         }
@@ -79,7 +92,8 @@ class AdministrarUsuariosRolesControlador extends Controller
         try {
             $id = $this->servicio->crear($request->validated());
             return RespuestaApi::exito(['id_usuario' => $id], 'Usuario creado satisfactoriamente', 201);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            report($e);
             $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
             return RespuestaApi::error('Error al crear usuario: ' . $e->getMessage(), $codigo);
         }
@@ -90,7 +104,8 @@ class AdministrarUsuariosRolesControlador extends Controller
         try {
             $this->servicio->actualizar($id, $request->validated());
             return RespuestaApi::exito(null, 'Usuario actualizado satisfactoriamente');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            report($e);
             $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
             return RespuestaApi::error('Error al actualizar usuario: ' . $e->getMessage(), $codigo);
         }
@@ -101,8 +116,10 @@ class AdministrarUsuariosRolesControlador extends Controller
         try {
             $nuevoEstado = $this->servicio->alternarEstado($id);
             return RespuestaApi::exito(['estado' => $nuevoEstado], "Estado cambiado a {$nuevoEstado}");
-        } catch (\Exception $e) {
-            return RespuestaApi::error('Error al cambiar estado: ' . $e->getMessage(), 400);
+        } catch (\Throwable $e) {
+            report($e);
+            $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
+            return RespuestaApi::error('Error al cambiar estado: ' . $e->getMessage(), $codigo);
         }
     }
 }

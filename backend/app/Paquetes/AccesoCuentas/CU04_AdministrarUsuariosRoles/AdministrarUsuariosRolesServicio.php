@@ -14,32 +14,32 @@ class AdministrarUsuariosRolesServicio
             ->join('roles', 'usuarios.id_rol', '=', 'roles.id_rol')
             ->join('personas', 'usuarios.id_persona', '=', 'personas.id_persona')
             ->select(
-                'usuarios.id_usuario',
-                'usuarios.nombre_usuario',
-                'usuarios.correo',
-                'usuarios.estado',
-                'usuarios.ultimo_acceso',
-                'usuarios.id_rol',
-                'roles.nombre as rol',
-                'personas.id_persona',
+                'usuarios.*',
                 'personas.nombres',
                 'personas.apellidos',
                 'personas.ci',
-                'personas.telefono'
+                'personas.telefono',
+                'personas.correo as persona_correo',
+                'roles.nombre as rol',
+                'roles.nombre as rol_nombre',
+                'roles.descripcion as rol_descripcion',
+                DB::raw("trim(COALESCE(personas.nombres, '') || ' ' || COALESCE(personas.apellidos, '')) as nombre_completo")
             )
             ->orderBy('usuarios.id_usuario', 'desc');
 
-        if ($termino) {
-            $query->where(function ($q) use ($termino) {
-                $q->where('usuarios.nombre_usuario', 'ilike', "%{$termino}%")
-                  ->orWhere('personas.nombres', 'ilike', "%{$termino}%")
-                  ->orWhere('personas.apellidos', 'ilike', "%{$termino}%")
-                  ->orWhere('personas.ci', 'ilike', "%{$termino}%");
+        if ($termino && trim($termino) !== '') {
+            $t = trim($termino);
+            $query->where(function ($q) use ($t) {
+                $q->where('usuarios.nombre_usuario', 'ilike', "%{$t}%")
+                  ->orWhere('usuarios.correo', 'ilike', "%{$t}%")
+                  ->orWhere('personas.nombres', 'ilike', "%{$t}%")
+                  ->orWhere('personas.apellidos', 'ilike', "%{$t}%")
+                  ->orWhere('personas.ci', 'ilike', "%{$t}%");
             });
         }
 
-        if ($rol) {
-            $query->where('roles.nombre', $rol);
+        if ($rol && trim($rol) !== '') {
+            $query->where('roles.nombre', 'ilike', trim($rol));
         }
 
         return $query->get()->toArray();
@@ -293,7 +293,7 @@ class AdministrarUsuariosRolesServicio
                     }
                     DB::table('medicos')->insert([
                         'id_persona' => $idPersona,
-                        'matricula_profesional' => 'MP-' . trim($datos['ci']),
+                        'nro_matricula' => 'MP-' . trim($datos['ci']),
                         'estado' => 'activo',
                         'created_at' => now(),
                         'updated_at' => now(),
