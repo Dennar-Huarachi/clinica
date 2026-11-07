@@ -16,7 +16,8 @@ class ConsultarMisPacientesServicio
             ->join('personas', 'pacientes.id_persona', '=', 'personas.id_persona')
             ->join('citas', 'pacientes.id_paciente', '=', 'citas.id_paciente')
             ->leftJoin('informacion_medica_paciente', 'pacientes.id_paciente', '=', 'informacion_medica_paciente.id_paciente')
-            ->where('citas.estado', '!=', 'cancelada');
+            ->where('citas.estado', '!=', 'cancelada')
+            ->where('citas.id_estado_cita', '!=', 6);
 
         // Aislamiento por médico estricto (RN19)
         if ($idMedico) {
@@ -51,8 +52,8 @@ class ConsultarMisPacientesServicio
             'informacion_medica_paciente.enfermedades_cronicas',
             'informacion_medica_paciente.medicamentos_actuales',
             DB::raw('count(citas.id_cita) as total_consultas'),
-            DB::raw('count(case when citas.id_estado_cita = 4 then 1 end) as consultas_atendidas'),
-            DB::raw('max(case when citas.id_estado_cita = 4 then citas.fecha_cita else null end) as ultima_fecha_atencion'),
+            DB::raw('count(case when citas.id_estado_cita = 5 then 1 end) as consultas_atendidas'),
+            DB::raw('max(case when citas.id_estado_cita = 5 then citas.fecha_cita else null end) as ultima_fecha_atencion'),
             DB::raw('max(citas.fecha_cita) as fecha_ultima_cita')
         )
         ->groupBy(

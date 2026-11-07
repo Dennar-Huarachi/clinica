@@ -96,6 +96,7 @@ Route::middleware(['sesion.clinica'])->group(function () {
 
     // --- PAQUETE 4: CitasNotificaciones (Transaccionales protegidas con throttle:60,1) ---
     Route::get('/citas', [GestionarCitasControlador::class, 'index']);
+    Route::get('/citas/{id}', [GestionarCitasControlador::class, 'show'])->whereNumber('id');
     Route::post('/citas', [GestionarCitasControlador::class, 'store'])->middleware('throttle:60,1');
     Route::put('/citas/{id}/reprogramar', [GestionarCitasControlador::class, 'reprogramar'])->middleware('throttle:60,1');
     Route::put('/citas/{id}/cancelar', [GestionarCitasControlador::class, 'cancelar'])->middleware('throttle:60,1');

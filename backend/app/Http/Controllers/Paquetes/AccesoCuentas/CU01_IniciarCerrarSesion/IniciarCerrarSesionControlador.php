@@ -29,7 +29,8 @@ class IniciarCerrarSesionControlador extends Controller
                 $contrasena
             );
 
-            return RespuestaApi::exito($resultado, 'Sesión iniciada exitosamente');
+            $respuesta = RespuestaApi::exito($resultado, 'Sesión iniciada exitosamente');
+            return $respuesta->withCookie(cookie('token_clinica', $resultado['token'], 120, '/', null, false, true, false, 'Lax'));
         } catch (\Exception $e) {
             $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
             return RespuestaApi::error($e->getMessage(), $codigo);
@@ -43,7 +44,8 @@ class IniciarCerrarSesionControlador extends Controller
             $this->servicio->cerrarSesion($usuario->id_usuario);
         }
 
-        return RespuestaApi::exito(null, 'Sesión cerrada correctamente');
+        $respuesta = RespuestaApi::exito(null, 'Sesión cerrada correctamente');
+        return $respuesta->withoutCookie('token_clinica');
     }
 
     public function verificar(Request $request): JsonResponse

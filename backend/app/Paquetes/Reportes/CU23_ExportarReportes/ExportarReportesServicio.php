@@ -23,8 +23,8 @@ class ExportarReportesServicio
         ?int $idEstadoCita = null,
         ?int $idUsuarioOperador = null
     ): array {
-        $inicio = $fechaInicio ?: Carbon::now()->startOfMonth()->toDateString();
-        $fin = $fechaFin ?: Carbon::now()->endOfMonth()->toDateString();
+        $inicio = $fechaInicio ?: Carbon::now('America/La_Paz')->startOfMonth()->toDateString();
+        $fin = $fechaFin ?: Carbon::now('America/La_Paz')->endOfMonth()->toDateString();
 
         $query = DB::table('citas')
             ->join('pacientes', 'citas.id_paciente', '=', 'pacientes.id_paciente')
@@ -135,8 +135,8 @@ class ExportarReportesServicio
         ?string $fechaFin = null,
         ?int $idUsuarioOperador = null
     ): array {
-        $inicio = $fechaInicio ?: Carbon::now()->startOfMonth()->toDateString();
-        $fin = $fechaFin ?: Carbon::now()->endOfMonth()->toDateString();
+        $inicio = $fechaInicio ?: Carbon::now('America/La_Paz')->startOfMonth()->toDateString();
+        $fin = $fechaFin ?: Carbon::now('America/La_Paz')->endOfMonth()->toDateString();
 
         $desgloseEspecialidades = DB::table('citas')
             ->join('especialidades', 'citas.id_especialidad', '=', 'especialidades.id_especialidad')

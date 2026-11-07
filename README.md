@@ -1,22 +1,107 @@
 # Sistema Web de Gestión de Citas Médicas — Clínica "Vida Salud"
-> **Documentación Técnica Integral de Análisis y Diseño UML (Metodología PUDS)**  
-> **Asignatura:** Ingeniería de Requisitos / Ingeniería de Software I — FCET / UAGRM  
+> **Documentación Técnica Integral de Análisis, Diseño UML y Operaciones (Metodología PUDS)**  
+> **Asignatura:** Ingeniería de Requisitos / Sistemas de Información I — FCET / UAGRM  
 > **Metodología:** Proceso Unificado de Desarrollo de Software (PUDS)  
-> **Patrón Arquitectónico:** Layered Package-by-Feature (Laravel 13 REST API + React 19 SPA + PostgreSQL 18)  
+> **Patrón Arquitectónico:** Clean Layered Package-by-Feature (Laravel REST API + React SPA + PostgreSQL)  
+
+<div align="center">
+
+[![Repositorio en GitHub](https://img.shields.io/badge/GitHub-Dennar--Huarachi%2Fclinica-181717?style=for-the-badge&logo=github)](https://github.com/Dennar-Huarachi/clinica.git)
+[![Frontend en Vercel](https://img.shields.io/badge/Frontend-Vercel%20Live-000000?style=for-the-badge&logo=vercel)](https://clinica-gilt-iota.vercel.app)
+[![Backend en Render](https://img.shields.io/badge/Backend-Render%20Live-46E3B7?style=for-the-badge&logo=render)](https://clinica-backend-plaw.onrender.com)
+[![Base de Datos en Supabase](https://img.shields.io/badge/Database-Supabase%20PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase)](https://supabase.com)
+[![Casos de Uso](https://img.shields.io/badge/Casos%20de%20Uso-26%20%2F%2026%20Completados-success?style=for-the-badge)](#listado-oficial-de-casos-de-uso-programados)
+
+<br/>
+
+<a href="https://github.com/Dennar-Huarachi/clinica.git">
+  <img src="docs/qr-repositorio.png" alt="Código QR del Repositorio de GitHub" width="160"/>
+</a>
+
+**Escanear para acceder al repositorio oficial de código fuente:**  
+[`https://github.com/Dennar-Huarachi/clinica.git`](https://github.com/Dennar-Huarachi/clinica.git)
+
+</div>
 
 ---
 
-## 1. Ficha Técnica y Arquitectura del Sistema
+## 1. Ficha Técnica, Alcance y Objetivo Clínico
 
-* **Institución:** Universidad Autónoma Gabriel René Moreno (UAGRM) — FCET.
-* **Materia:** Ingeniería de Requisitos / Sistemas de Información I.
-* **Alcance:** 27 Casos de Uso integrales (20 base y 7 opcionales), organizados en 6 paquetes funcionales (`AccesoCuentas`, `PacientesPerfil`, `CatalogosHorarios`, `CitasNotificaciones`, `HistoriaClinica`, `Reportes`).
-* **Fidelidad al Código Fuente (1:1):** Cada nombre de clase, componente React, ruta física, signatura de método, parámetro y tabla de base de datos coincide de forma estricta con el código implementado en `backend/` y `frontend/`.
-* **Stack Tecnológico:**
-  - **Backend:** PHP 8.3+ / Laravel 13 (REST API, FormRequests personalizados con sanitización anti-XSS recursiva, Servicios de Dominio con transacciones ACID).
-  - **Frontend:** React 19 / Vite / CSS Modular Nativo (Variables CSS en `:root`, Mobile-First estricto, sin scroll horizontal mediante `TablaExpandible.jsx`, zonas táctiles $\ge 44$px).
-  - **Persistencia:** PostgreSQL 18 con 23 tablas normalizadas, integridad referencial estricta, transacciones ACID y bloqueo pesimista `lockForUpdate()`.
-  - **Seguridad (OWASP Top 10):** Middleware de cabeceras HTTP (`CabecerasSeguridad.php`), sanitización anti-XSS recursiva (`strip_tags()`), Rate Limiting granular (`throttle:5,1`, `throttle:10,1`, `throttle:60,1`), prevención IDOR con extracción de identidad desde tokens de sesión e interceptor Axios ante errores 401/403.
+### Objetivo Clínico del Sistema
+La plataforma web de la **Clínica "Vida Salud"** automatiza la gestión integral de citas médicas ambulatorias, eliminando tiempos muertos, aglomeraciones en recepción y errores humanos en la asignación de turnos. Sus pilares clínicos y operativos son:
+1. **Cero Sobrevueltas (Double-Booking Prevention):** Concurrencia estricta a nivel de base de datos (`SELECT ... FOR UPDATE` sobre transacciones ACID) que previene reservas simultáneas del mismo slot médico.
+2. **Garantía y Compromiso de Asistencia (RN15 / CU-27):** Depósito de garantía de 50 Bs reembolsable automáticamente si el paciente cancela con más de 12 horas de anticipación, penalizando el ausentismo sin previo aviso.
+3. **Resiliencia ante Imprevistos Médicos (RN17 / CU-11):** Suspensión formal de turnos médicos por emergencia con ventana protegida de 48 horas de prioridad para reubicar a los pacientes afectados antes de liberar los turnos al público general.
+4. **Trazabilidad Médico-Legal y Auditoría Inmutable (RN21 / CU-24):** Bitácora transaccional forense que registra IP, navegador, valores anteriores y nuevos en cada operación sensible, asegurando conformidad con normativas de salud.
+
+### Enlaces de Despliegue en Producción
+
+| Componente | Plataforma / Infraestructura | URL de Acceso Oficial | Estado / Monitoreo |
+| :--- | :--- | :--- | :--- |
+| **Frontend Web (SPA)** | Vercel (CI/CD Automático en Linux) | [https://clinica-gilt-iota.vercel.app](https://clinica-gilt-iota.vercel.app) | En Línea (HTTPS / CDN Global) |
+| **Backend REST API** | Render (Web Service Docker/Native) | [https://clinica-backend-plaw.onrender.com](https://clinica-backend-plaw.onrender.com) | En Línea (HTTPS / PHP 8.3) |
+| **Base de Datos** | Supabase (Cloud PostgreSQL 16) | `aws-0-sa-east-1.pooler.supabase.com:5432` | En Línea (Zona Horaria UTC-4) |
+| **Código Fuente** | GitHub (Dennar-Huarachi/clinica) | [https://github.com/Dennar-Huarachi/clinica.git](https://github.com/Dennar-Huarachi/clinica.git) | Rama `main` |
+
+### Stack Tecnológico Completo
+* **Backend:** PHP 8.3+ / Laravel 13 (REST API, Arquitectura limpia por Paquetes, FormRequests con sanitización recursiva `strip_tags()`, Manejador Global de Excepciones JSON, Rate Limiting granular `throttle:5,1`, `throttle:10,1`, `throttle:60,1`).
+* **Frontend:** React 19 / Vite / React Router v7 / CSS Modular Nativo (Variables CSS en `:root`, diseño Mobile-First estricto, sin desbordamiento horizontal gracias a `TablaExpandible.jsx`, interceptores Axios para token Bearer y normalización de errores HTTP 400/401/403/409/422).
+* **Persistencia:** PostgreSQL 18 (Local en Laragon) y PostgreSQL 16 (Producción en Supabase) con 23 tablas normalizadas, integridad referencial con claves foráneas, índices de unicidad sobre `(id_medico, fecha_cita, hora_inicio)` y transacciones ACID.
+* **Seguridad (OWASP Top 10):** Middleware de cabeceras HTTP seguras (`CabecerasSeguridad.php`), blindaje anti-IDOR con validación de identidad a partir de token Bearer en sesión (RN19), sanitización de cadenas y protección CORS restringido a orígenes autorizados.
+
+### Matriz de Roles y Privilegios del Sistema
+
+| Módulo / Capacidad | Paciente | Recepcionista | Médico | Administrador |
+| :--- | :---: | :---: | :---: | :---: |
+| **Registro y Autenticación** | Registrarse, Iniciar sesión | Iniciar sesión | Iniciar sesión | Iniciar sesión |
+| **Gestión de Perfil Personal** | Actualizar datos, alergias, contactos | Solo credenciales | Solo credenciales | Solo credenciales |
+| **Catálogo de Especialidades y Médicos** | Solo lectura | Solo lectura | Solo lectura | CRUD Completo |
+| **Horarios de Atención y Bloqueos** | Solo lectura (disponibilidad) | Solo lectura | Ver su propio horario | CRUD Completo |
+| **Suspensión de Horarios y Reubicación** | Notificado | Ver / Reubicar afectados | Notificado | Crear suspensión / Reubicar |
+| **Reserva de Citas Médicas** | Sí (Web con garantía) | Sí (Ventanilla / Teléfono) | No | No |
+| **Pago y Reembolso de Garantía** | Pagar QR/Tarjeta, ver recibo | Pagar Efectivo/QR, ver recibo | No | Consultar transacciones |
+| **Cancelación de Citas** | Sí ($\ge 12$h con reembolso) | Sí (En cualquier momento) | No | Sí (En cualquier momento) |
+| **Registro de Asistencia en Sala** | No | Sí (En Espera / Inasistencia) | No | Corrección justificada (RN16) |
+| **Agenda Diaria de Consultas** | No | Agenda general de clínica | Agenda de su consultorio | Vista global |
+| **Atención Clínica y Recetas** | Solo lectura en su historial | No | Registrar diagnóstico / RP | No |
+| **Resultados de Laboratorio** | Solo lectura en su historial | No | Registrar / Adjuntar estudio | No |
+| **Historial Clínico / Kardex** | Ver mi historial médico | No | Mis pacientes / Historial | No |
+| **Reportes Estadísticos y Exportación**| No | No | No | Citas, Asistencia, CSV/Excel |
+| **Bitácora de Auditoría (RN21)** | No | No | No | Auditoría forense inmutable |
+| **Copias de Seguridad (CU-26)** | No | No | No | Crear y restaurar backups |
+| **Administración de Usuarios y Roles** | No | No | No | CRUD Usuarios, Roles, Permisos |
+
+### Listado Oficial de Casos de Uso Programados
+
+| Identificador | Nombre del Caso de Uso | Paquete Arquitectónico | Actor Principal | Estado |
+| :--- | :--- | :--- | :--- | :---: |
+| **CU-01** | Iniciar y Cerrar Sesión | `AccesoCuentas` | Paciente / Personal Clínico | **Completado** |
+| **CU-02** | Cambiar y Recuperar Contraseña | `AccesoCuentas` | Usuario Autenticado | **Completado** |
+| **CU-03** | Registrarse como Paciente | `AccesoCuentas` | Paciente no registrado | **Completado** |
+| **CU-04** | Administrar Usuarios y Roles | `AccesoCuentas` | Administrador | **Completado** |
+| **CU-05** | Gestionar Pacientes | `PacientesPerfil` | Recepcionista / Administrador | **Completado** |
+| **CU-06** | Gestionar Mi Perfil de Paciente | `PacientesPerfil` | Paciente | **Completado** |
+| **CU-07** | Gestionar Especialidades Médicas | `CatalogosHorarios` | Administrador | **Completado** |
+| **CU-08** | Gestionar Médicos Especialistas | `CatalogosHorarios` | Administrador | **Completado** |
+| **CU-09** | Gestionar Horarios de Atención | `CatalogosHorarios` | Administrador | **Completado** |
+| **CU-10** | Consultar Disponibilidad de Turnos | `CatalogosHorarios` | Paciente / Recepcionista | **Completado** |
+| **CU-11** | Suspender Horario de Atención y Reubicar | `CatalogosHorarios` | Administrador | **Completado** |
+| **CU-12** | Reservar Cita Médica | `CitasNotificaciones` | Paciente / Recepcionista | **Completado** |
+| **CU-13** | Registrar Asistencia del Paciente | `CitasNotificaciones` | Recepcionista | **Completado** |
+| **CU-14** | Consultar Agenda de Citas | `CitasNotificaciones` | Médico / Recepcionista | **Completado** |
+| **CU-15** | Historial y Seguimiento de Citas | `CitasNotificaciones` | Paciente | **Completado** |
+| **CU-16** | Enviar y Consultar Notificaciones | `CitasNotificaciones` | Paciente / Personal Clínico | **Completado** |
+| **CU-17** | Consultar Mis Pacientes (Kardex) | `HistoriaClinica` | Médico | **Completado** |
+| **CU-18** | Registrar Atención Clínica y Prescripción | `HistoriaClinica` | Médico | **Completado** |
+| **CU-19** | Registrar y Consultar Resultados de Laboratorio | `HistoriaClinica` | Médico | **Completado** |
+| **CU-20** | Consultar Historial Clínico Integral | `HistoriaClinica` | Médico / Paciente | **Completado** |
+| **CU-21** | Generar Reporte de Citas por Especialidad y Médico | `Reportes` | Administrador | **Completado** |
+| **CU-22** | Generar Reporte de Asistencia e Inasistencia | `Reportes` | Administrador | **Completado** |
+| **CU-23** | Exportar Reportes en Formato CSV / Excel | `Reportes` | Administrador | **Completado** |
+| **CU-24** | Consultar Bitácora de Auditoría | `Reportes` | Administrador | **Completado** |
+| **CU-25** | Visualizar Dashboard Estadístico | `Reportes` | Administrador | **Completado** |
+| **CU-26** | Generar y Restaurar Copias de Seguridad | `AccesoCuentas` | Administrador | **Completado** |
+| **CU-27** | Gestionar Pagos y Reembolsos de Garantía | `CitasNotificaciones` | Paciente / Recepcionista | **Completado** |
 
 ---
 
@@ -1070,26 +1155,129 @@ end
 
 ## 5. Instrucciones de Despliegue y Ejecución Local
 
-### Prerrequisitos
-* PHP $\ge 8.3$ con extensiones `pdo_pgsql`, `pgsql`, `mbstring`, `openssl`.
-* Node.js $\ge 20$ y `npm`.
-* PostgreSQL 18 (o $\ge 16$) en ejecución con la base de datos `clinica` configurada.
+### 5.1. Prerrequisitos del Entorno
+* **Sistema Operativo:** Windows 10/11 con Laragon (o Linux / macOS).
+* **PHP:** Versión $\ge 8.3$ con extensiones habilitadas: `pdo_pgsql`, `pgsql`, `mbstring`, `openssl`, `bcmath`, `curl`.
+* **Gestor de Paquetes PHP:** Composer $\ge 2.7$.
+* **Node.js:** Versión $\ge 20$ (LTS) y `npm` $\ge 10$.
+* **Motor de Base de Datos:** PostgreSQL $\ge 16$ (localmente en puerto 5432 con base de datos `clinica_db` creada).
 
-### Arranque del Backend (Laravel)
-```bash
-cd backend
-composer install
-cp .env.example .env
-php artisan key:generate
-php artisan migrate --seed
-php artisan serve
-```
-El backend quedará escuchando en `http://127.0.0.1:8000`.
+---
 
-### Arranque del Frontend (React + Vite)
+### 5.2. Instalación y Configuración del Backend (Laravel)
+
+1. **Navegar al directorio del backend:**
+   ```bash
+   cd backend
+   ```
+
+2. **Instalar dependencias de PHP:**
+   ```bash
+   composer install
+   ```
+
+3. **Configurar el archivo de variables de entorno:**
+   ```bash
+   cp .env.example .env
+   php artisan key:generate
+   ```
+
+4. **Ejecutar migraciones y poblar datos de demostración:**
+   ```bash
+   php artisan migrate --force
+   php artisan db:seed --class=DatosDemostracionSeeder
+   ```
+   > [!NOTE]
+   > `DatosDemostracionSeeder` es idempotente y genera el universo completo para la defensa: 4 roles de usuario, médicos con horarios, 47 citas en todos los estados (`pendiente`, `confirmada`, `en_espera`, `atendida`, `cancelada`, `inasistencia`, `reprogramada` [CM-0043] y `postergada` por suspensión), 8 atenciones clínicas con recetas e historial de laboratorio, parámetros del sistema y bitácora de auditoría.
+
+5. **Iniciar el servidor de desarrollo:**
+   ```bash
+   php artisan serve --port=8000
+   ```
+   *El backend quedará disponible en `http://127.0.0.1:8000`.*
+
+---
+
+### 5.3. Instalación y Configuración del Frontend (React + Vite)
+
+1. **Navegar al directorio del frontend:**
+   ```bash
+   cd frontend
+   ```
+
+2. **Instalar dependencias de Node.js:**
+   ```bash
+   npm install
+   ```
+
+3. **Configurar el archivo de variables de entorno:**
+   ```bash
+   cp .env.example .env
+   ```
+   *Asegúrate de que `VITE_API_URL=http://127.0.0.1:8000/api` (o `http://127.0.0.1:8000`).*
+
+4. **Compilar para verificación estricta de tipos e imports:**
+   ```bash
+   npm run build
+   ```
+
+5. **Iniciar el servidor de desarrollo:**
+   ```bash
+   npm run dev
+   ```
+   *El frontend SPA quedará disponible en `http://localhost:5173`.*
+
+---
+
+### 5.4. Verificación Automatizada de Pruebas
+
+Para validar los 20 requisitos esenciales del sistema de forma local:
 ```bash
-cd frontend
-npm install
-npm run dev
+php backend/tests/ejecutar_20_pruebas.php
 ```
-La aplicación web se ejecutará en `http://localhost:5173`.
+*Resultado esperado: **21 de 21 pruebas superadas exitosamente (100%)**.*
+
+---
+
+### 5.5. Especificación de Variables de Entorno (Placeholders)
+
+#### Backend (`backend/.env.example`)
+```env
+APP_NAME="Clinica Vida Salud"
+APP_ENV=local
+APP_KEY=base64:PLACEHOLDER_GENERADO_CON_KEY_GENERATE=
+APP_DEBUG=true
+APP_URL=http://localhost:8000
+FRONTEND_URL=https://clinica-gilt-iota.vercel.app,http://localhost:5173
+
+APP_LOCALE=es
+APP_FALLBACK_LOCALE=es
+
+# Conexión a Base de Datos PostgreSQL
+DB_CONNECTION=pgsql
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=clinica_db
+DB_USERNAME=tu_usuario_postgres
+DB_PASSWORD=tu_contrasena_postgres
+
+# Control de Sesión y Caché
+SESSION_DRIVER=cookie
+SESSION_LIFETIME=120
+CACHE_STORE=file
+
+# Parámetros y Reglas de Negocio Clínicas
+HORAS_ANTICIPACION_CANCELAR=12
+HORAS_VENTANA_POSTERGADAS=48
+MINUTOS_DURACION_TURNO=15
+MONTO_FIJO_RESERVA_CITA=50.00
+```
+
+#### Frontend (`frontend/.env.example`)
+```env
+# URL de la API del Backend (Sin barra diagonal final)
+VITE_API_URL=http://127.0.0.1:8000/api
+```
+
+> [!CAUTION]
+> NUNCA expongas contraseñas reales, credenciales de producción ni secretos de infraestructura en archivos `.env.example` ni en el historial de control de versiones. El archivo `.gitignore` del proyecto excluye estrictamente `.env`, directorios de dependencias y copias de seguridad.

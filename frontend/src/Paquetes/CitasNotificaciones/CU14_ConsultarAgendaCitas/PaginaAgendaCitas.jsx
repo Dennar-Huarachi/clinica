@@ -9,6 +9,7 @@ import LayoutPrincipal from '../../../compartido/layouts/LayoutPrincipal';
 import TablaExpandible from '../../../comun/componentes/TablaExpandible';
 import InsigniaEstadoPago from '../CU27_GestionarPagosReembolsos/InsigniaEstadoPago';
 import VistaSemanalAgenda, { obtenerDiasSemana } from './VistaSemanalAgenda';
+import ModalReprogramarCita from '../CU12_GestionarCitas/ModalReprogramarCita';
 
 export default function PaginaAgendaCitas() {
   const [modoVista, setModoVista] = useState('diaria'); // 'diaria' | 'semanal'
@@ -28,6 +29,9 @@ export default function PaginaAgendaCitas() {
   const [citaCancelar, setCitaCancelar] = useState(null);
   const [motivoCancelacion, setMotivoCancelacion] = useState('');
   const [procesandoCancelacion, setProcesandoCancelacion] = useState(false);
+
+  const [citaReprogramar, setCitaReprogramar] = useState(null);
+  const [procesandoReprogramacion, setProcesandoReprogramacion] = useState(false);
 
   const [citaCorreccionRN16, setCitaCorreccionRN16] = useState(null);
   const [nuevoEstadoRN16, setNuevoEstadoRN16] = useState('');
@@ -136,6 +140,30 @@ export default function PaginaAgendaCitas() {
   const abrirModalCancelar = (cita) => {
     setCitaCancelar(cita);
     setMotivoCancelacion('');
+  };
+
+  // Abrir modal de reprogramación en ventanilla
+  const abrirModalReprogramar = (cita) => {
+    setCitaReprogramar(cita);
+  };
+
+  // Ejecutar reprogramación
+  const ejecutarReprogramacion = async (payload, onError) => {
+    setProcesandoReprogramacion(true);
+    try {
+      await api.put(`/citas/${citaReprogramar.id_cita}/reprogramar`, payload);
+      setAlerta({
+        tipo: 'exito',
+        mensaje: `Cita ${citaReprogramar.codigo_cita} reprogramada exitosamente para el ${payload.fecha_cita} a las ${payload.hora_inicio}.`,
+      });
+      setCitaReprogramar(null);
+      cargarAgenda();
+    } catch (err) {
+      const msg = err.response?.data?.mensaje || 'No se pudo reprogramar la cita.';
+      if (onError) onError(msg);
+    } finally {
+      setProcesandoReprogramacion(false);
+    }
   };
 
   // Ejecutar cancelación lógica
@@ -484,6 +512,18 @@ export default function PaginaAgendaCitas() {
                         </button>
                       )}
 
+                      {['pendiente', 'confirmada'].includes(c.estado_codigo) && !esMedico && (
+                        <button
+                          type="button"
+                          onClick={() => abrirModalReprogramar(c)}
+                          className="boton-terciario"
+                          style={{ minHeight: '34px', padding: '0 0.6rem', fontSize: '0.8rem' }}
+                          title="Reprogramar fecha u hora de la cita"
+                        >
+                          Reprogramar
+                        </button>
+                      )}
+
                       {esMedico && ['en_espera', 'confirmada', 'pendiente'].includes(c.estado_codigo) && (
                         <Link
                           to={`/historia-clinica/atencion/${c.id_cita}`}
@@ -616,6 +656,16 @@ export default function PaginaAgendaCitas() {
                         className="boton-primario"
                       >
                         📍 Marcar Presente / En Sala
+                      </button>
+                    )}
+
+                    {['pendiente', 'confirmada'].includes(c.estado_codigo) && !esMedico && (
+                      <button
+                        type="button"
+                        onClick={() => abrirModalReprogramar(c)}
+                        className="boton-secundario"
+                      >
+                        🔄 Reprogramar Fecha / Hora
                       </button>
                     )}
 
@@ -867,6 +917,15 @@ export default function PaginaAgendaCitas() {
             </div>
           </div>
         )}
+
+        {/* Modal de Reprogramación de Cita (CU-12) */}
+        <ModalReprogramarCita
+          abierto={Boolean(citaReprogramar)}
+          onCerrar={() => setCitaReprogramar(null)}
+          cita={citaReprogramar}
+          onConfirmar={ejecutarReprogramacion}
+          guardando={procesandoReprogramacion}
+        />
       </div>
     </LayoutPrincipal>
   );

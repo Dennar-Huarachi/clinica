@@ -49,9 +49,9 @@ class SuspenderHorarioServicio
                 'updated_at' => now(),
             ], 'id_suspension');
 
-            // 2. Obtener el ID del estado 'postergada' (8) en estados_cita
+            // 2. Obtener el ID del estado 'postergada' (9) en estados_cita
             $estadoPostergada = DB::table('estados_cita')->where('codigo', 'postergada')->first();
-            $idEstadoPostergada = $estadoPostergada ? $estadoPostergada->id_estado_cita : 8;
+            $idEstadoPostergada = $estadoPostergada ? (int)$estadoPostergada->id_estado_cita : 9;
 
             // 3. Buscar citas candidatas del médico en ese rango de fechas
             $fechaInicioStr = $inicioSuspension->toDateString();
@@ -63,7 +63,7 @@ class SuspenderHorarioServicio
                 ->where('citas.id_medico', $datos['id_medico'])
                 ->whereBetween('citas.fecha_cita', [$fechaInicioStr, $fechaFinStr])
                 ->where('citas.estado', '!=', 'cancelada')
-                ->whereNotIn('citas.id_estado_cita', [4, 5, 6]) // Excluir atendidas, canceladas o inasistencias
+                ->whereNotIn('citas.id_estado_cita', [5, 6, 7]) // Excluir atendidas (5), canceladas (6) o inasistencias (7)
                 ->select(
                     'citas.*',
                     'p_paciente.nombres as paciente_nombres',
@@ -86,6 +86,7 @@ class SuspenderHorarioServicio
                     // Actualizar cita a estado postergada
                     DB::table('citas')->where('id_cita', $cita->id_cita)->update([
                         'id_estado_cita' => $idEstadoPostergada,
+                        'estado' => 'activo',
                         'es_postergada' => true,
                         'fecha_expiracion_reserva' => $expiracionReserva,
                         'observaciones' => trim(($cita->observaciones ?? '') . " [Afectada por suspensión: {$datos['motivo']}]"),
@@ -167,7 +168,8 @@ class SuspenderHorarioServicio
      */
     public function reubicarCita(array $datos, ?int $idUsuarioOperador = null): array
     {
-        return DB::transaction(function () use ($datos, $idUsuarioOperador) {
+        try {
+            return DB::transaction(function () use ($datos, $idUsuarioOperador) {
             // 1. Bloqueo pesimista sobre la cita a reubicar
             $cita = DB::table('citas')
                 ->where('id_cita', $datos['id_cita'])
@@ -178,7 +180,8 @@ class SuspenderHorarioServicio
                 throw new \Exception('La cita médica indicada no existe.', 404);
             }
 
-            if (!$cita->es_postergada && $cita->id_estado_cita != 8) {
+            $estadoPostergada = DB::table('estados_cita')->where('codigo', 'postergada')->value('id_estado_cita') ?: 9;
+            if (!$cita->es_postergada && (int)$cita->id_estado_cita !== (int)$estadoPostergada) {
                 throw new \Exception('La cita no se encuentra en estado postergada para reubicación.', 422);
             }
 
@@ -220,7 +223,13 @@ class SuspenderHorarioServicio
                 throw new \Exception('El médico cuenta con una suspensión activa en el turno seleccionado: ' . $suspension->motivo, 422);
             }
 
-            // 4. Verificar solapamiento con otras citas del médico usando la regla unificada (Cita::querySolapamiento)
+            // 4. Control de concurrencia: Bloqueo pesimista del registro del médico para serializar
+            // operaciones simultáneas y verificación unificada de solapamiento
+            DB::table('medicos')
+                ->where('id_medico', $idMedico)
+                ->lockForUpdate()
+                ->first();
+
             $solapamiento = Cita::querySolapamiento(
                 $idMedico,
                 $nuevaFecha,
@@ -230,7 +239,7 @@ class SuspenderHorarioServicio
             )->lockForUpdate()->exists();
 
             if ($solapamiento) {
-                throw new \Exception('El turno seleccionado ya se encuentra ocupado por otra cita agendada.', 422);
+                throw new \Exception('El turno seleccionado ya se encuentra ocupado por otra cita agendada.', 409);
             }
 
             // 5. Estado destino: Confirmada (id=3 en catálogo)
@@ -248,6 +257,7 @@ class SuspenderHorarioServicio
                 'hora_inicio' => $nuevaHoraInicio,
                 'hora_fin' => $nuevaHoraFin,
                 'id_estado_cita' => $idEstadoConfirmada,
+                'estado' => 'activo',
                 'es_postergada' => false,
                 'fecha_expiracion_reserva' => null,
                 'observaciones' => trim(($cita->observaciones ?? '') . $notaReubicacion),
@@ -314,7 +324,14 @@ class SuspenderHorarioServicio
                 'mensaje' => "Cita {$cita->codigo_cita} reubicada exitosamente para el {$nuevaFecha} a las {$nuevaHoraInicio}."
             ];
         });
+    } catch (\Illuminate\Database\UniqueConstraintViolationException | \Illuminate\Database\QueryException $e) {
+        $esConflicto = ($e->getCode() === '23505') || str_contains($e->getMessage(), 'uq_citas_turno_activo');
+        if ($esConflicto) {
+            throw new \Exception('El turno seleccionado ya se encuentra ocupado por otra cita agendada.', 409);
+        }
+        throw $e;
     }
+}
 
     /**
      * Lista todas las citas médicas actualmente en estado postergada pendientes de reubicación.
@@ -329,7 +346,8 @@ class SuspenderHorarioServicio
             ->join('especialidades', 'citas.id_especialidad', '=', 'especialidades.id_especialidad')
             ->leftJoin('usuarios', 'pacientes.id_persona', '=', 'usuarios.id_persona')
             ->where(function ($q) {
-                $q->where('citas.id_estado_cita', 8)
+                $estadoPostergada = DB::table('estados_cita')->where('codigo', 'postergada')->value('id_estado_cita') ?: 9;
+                $q->where('citas.id_estado_cita', $estadoPostergada)
                   ->orWhere('citas.es_postergada', true);
             })
             ->where('citas.estado', '!=', 'cancelada')

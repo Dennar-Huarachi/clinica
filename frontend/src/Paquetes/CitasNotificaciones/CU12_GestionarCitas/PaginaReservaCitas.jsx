@@ -190,38 +190,46 @@ export default function PaginaReservaCitas() {
       setMotivoConsulta('');
     } catch (err) {
       const codigoEstado = err.response?.status;
-      const mensajeServidor = err.response?.data?.mensaje || 'No se pudo reservar el turno médico ni procesar el pago.';
+      const mensajeServidor = err.response?.data?.mensaje;
 
-      // Caso de conflicto por turno ocupado concurrente (HTTP 409 Conflict)
+      // 1. Caso de conflicto por turno ocupado concurrentemente (HTTP 409 Conflict)
       if (codigoEstado === 409 || (codigoEstado === 400 && String(mensajeServidor).toLowerCase().includes('reservado'))) {
-        // a. Limpiar el estado del turno seleccionado (ningún botón naranja)
         setTurnoSeleccionado(null);
-
-        // b. Volver a consultar de inmediato la disponibilidad para la misma combinación
         setClaveRefrescoTurnos((prev) => prev + 1);
-
-        // c. Mantener visible la alerta roja con el mensaje del servidor
         setAlerta({
           tipo: 'error',
-          mensaje: mensajeServidor,
+          mensaje: mensajeServidor || 'El turno médico seleccionado ya no se encuentra disponible. Por favor seleccione otro turno.',
         });
       } else if (codigoEstado === 401) {
         setAlerta({
           tipo: 'error',
-          mensaje: 'Sesión no autorizada o expirada (401). Por favor inicie sesión nuevamente.',
+          mensaje: 'Su sesión ha expirado o no está autorizado. Inicie sesión nuevamente.',
         });
-      } else if (codigoEstado === 422 && err.response?.data?.errores) {
-        setErrores(err.response.data.errores);
+      } else if (codigoEstado === 422) {
+        if (err.response?.data?.errores) {
+          setErrores(err.response.data.errores);
+        }
         setAlerta({
           tipo: 'error',
-          mensaje: mensajeServidor,
+          mensaje: mensajeServidor || 'Los datos de la reserva no son válidos. Por favor revise el formulario.',
+        });
+      } else if (codigoEstado >= 500) {
+        setAlerta({
+          tipo: 'error',
+          mensaje: 'No fue posible completar la reserva debido a un problema técnico en el servidor. Por favor intente nuevamente.',
+        });
+      } else if (!err.response) {
+        setAlerta({
+          tipo: 'error',
+          mensaje: 'No se pudo conectar con el servidor. Verifique su conexión a internet e intente de nuevo.',
         });
       } else {
         setAlerta({
           tipo: 'error',
-          mensaje: mensajeServidor,
+          mensaje: mensajeServidor || 'No se pudo procesar la reserva de la cita médica.',
         });
       }
+
       setMostrarModalPago(false);
     } finally {
       setEnviando(false);

@@ -23,11 +23,15 @@ return [
         [
             'https://clinica-gilt-iota.vercel.app',
             'http://localhost:5173',
+            'http://127.0.0.1:5173',
+            'http://localhost:3000',
         ],
         array_map('trim', explode(',', env('FRONTEND_URL', '')))
     )))),
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => [
+        '#^https://[a-zA-Z0-9\-_]+\.vercel\.app$#',
+    ],
 
     'allowed_headers' => ['*'],
 

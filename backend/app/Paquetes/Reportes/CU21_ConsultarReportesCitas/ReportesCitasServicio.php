@@ -18,8 +18,8 @@ class ReportesCitasServicio
         ?int $idMedico = null,
         ?int $idEstadoCita = null
     ): array {
-        $inicio = $fechaInicio ?: Carbon::now()->startOfMonth()->toDateString();
-        $fin = $fechaFin ?: Carbon::now()->endOfMonth()->toDateString();
+        $inicio = $fechaInicio ?: Carbon::now('America/La_Paz')->startOfMonth()->toDateString();
+        $fin = $fechaFin ?: Carbon::now('America/La_Paz')->endOfMonth()->toDateString();
 
         if (Carbon::parse($inicio)->gt(Carbon::parse($fin))) {
             throw new \InvalidArgumentException('El rango cronológico es inválido: la fecha inicial no puede ser posterior a la fecha final.');

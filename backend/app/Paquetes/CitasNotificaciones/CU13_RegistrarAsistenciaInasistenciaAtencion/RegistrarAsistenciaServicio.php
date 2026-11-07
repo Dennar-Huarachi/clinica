@@ -26,23 +26,22 @@ class RegistrarAsistenciaServicio
                 throw new \Exception('Cita médica no encontrada.', 404);
             }
 
-            // 2. Regla Anti-Reactivación:
-            if ($cita->estado === 'cancelada' || (int)$cita->id_estado_cita === 5) {
-                throw new \Exception('Una cita cancelada no puede reactivarse ni registrarse como asistida. Por favor programe una nueva cita.', 422);
+            // 2. Determinar estado actual de la cita
+            $estadoActual = DB::table('estados_cita')->where('id_estado_cita', $cita->id_estado_cita)->first();
+            $codigoActual = $estadoActual?->codigo ?? '';
+
+            // 3. Regla Anti-Reactivación (RN16): Una cita cancelada nunca se reactiva ni se marca como asistida/atendida
+            if ($cita->estado === 'cancelada' || $codigoActual === 'cancelada') {
+                throw new \Exception('Una cita cancelada no puede reactivarse ni registrarse como asistida. Por favor programe una nueva cita (RN16).', 422);
             }
 
-            // 3. Validar estado de destino
+            // 4. Validar estado de destino
             $nuevoEstadoCita = DB::table('estados_cita')->where('codigo', $nuevoCodigoEstado)->first();
             if (!$nuevoEstadoCita) {
                 throw new \Exception("Estado de cita '{$nuevoCodigoEstado}' no reconocido.", 422);
             }
 
-            // 4. Determinar estado actual
-            $estadoActual = DB::table('estados_cita')->where('id_estado_cita', $cita->id_estado_cita)->first();
-            $codigoActual = $estadoActual?->codigo ?? '';
-
-            $esCerrada = in_array($codigoActual, ['atendida', 'inasistencia'], true) ||
-                         in_array((int)$cita->id_estado_cita, [4, 6], true);
+            $esCerrada = in_array($codigoActual, ['atendida', 'inasistencia'], true);
 
             // 5. Corrección Autorizada de Citas Cerradas (atendida ⇄ inasistencia)
             if ($esCerrada) {
@@ -69,6 +68,7 @@ class RegistrarAsistenciaServicio
 
                 DB::table('citas')->where('id_cita', $idCita)->update([
                     'id_estado_cita' => $nuevoEstadoCita->id_estado_cita,
+                    'estado' => 'activo',
                     'observaciones' => $obs,
                     'updated_at' => now(),
                 ]);
@@ -105,20 +105,25 @@ class RegistrarAsistenciaServicio
                 ];
             }
 
-            // 6. Flujo Regular: Validación Temporal (RN10) si la cita está en estado inicial (pendiente/programada o confirmada)
-            if (in_array($codigoActual, ['pendiente', 'confirmada'], true) || in_array((int)$cita->id_estado_cita, [1, 2], true)) {
-                $hoy = Carbon::today()->toDateString();
+            // 6. Flujo Regular: Validación Temporal (RN10 / Reglas de Estado)
+            // Programada/Confirmada/Reprogramada a Atendida o Inasistencia, NUNCA antes del inicio del turno.
+            if (in_array($codigoActual, ['pendiente', 'programada', 'confirmada', 'reprogramada', 'en_espera'], true)) {
+                $hoy = Carbon::today('America/La_Paz')->toDateString();
                 if ($cita->fecha_cita > $hoy) {
                     throw new \Exception('No se puede registrar asistencia o atención para citas en fechas futuras.', 422);
                 }
 
                 // Verificar hora de inicio (permitiendo hasta 15 minutos de anticipación si se marca presencia en sala 'en_espera')
-                $fechaHoraInicio = Carbon::parse($cita->fecha_cita . ' ' . $cita->hora_inicio);
+                $fechaHoraInicio = Carbon::parse($cita->fecha_cita . ' ' . $cita->hora_inicio, 'America/La_Paz');
                 $minutosAnticipacion = ($nuevoCodigoEstado === 'en_espera') ? 15 : 0;
                 $horaMinima = $fechaHoraInicio->copy()->subMinutes($minutosAnticipacion);
 
-                if (now()->lessThan($horaMinima)) {
-                    throw new \Exception('Aún no inicia el turno de la cita médica. Solo se permite registrar presencia hasta 15 minutos antes del inicio.', 422);
+                $ahora = Carbon::now('America/La_Paz');
+                if ($ahora->lessThan($horaMinima)) {
+                    if ($nuevoCodigoEstado === 'en_espera') {
+                        throw new \Exception('Aún no inicia el turno de la cita médica. Solo se permite registrar presencia hasta 15 minutos antes del inicio.', 422);
+                    }
+                    throw new \Exception('No se puede registrar la atención o inasistencia antes del inicio del turno programado.', 422);
                 }
             }
 
@@ -130,6 +135,7 @@ class RegistrarAsistenciaServicio
 
             DB::table('citas')->where('id_cita', $idCita)->update([
                 'id_estado_cita' => $nuevoEstadoCita->id_estado_cita,
+                'estado' => 'activo',
                 'observaciones' => $obs,
                 'updated_at' => now(),
             ]);

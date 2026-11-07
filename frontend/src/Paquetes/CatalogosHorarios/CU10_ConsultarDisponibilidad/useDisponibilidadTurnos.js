@@ -28,6 +28,7 @@ export default function useDisponibilidadTurnos({
 
   const peticionIdRef = useRef(0);
   const abortControllerRef = useRef(null);
+  const ultimoRefrescoRef = useRef(0);
 
   const consultarDisponibilidad = useCallback(() => {
     if (!activo || !idMedico || !idEspecialidad || !fecha) {
@@ -51,11 +52,12 @@ export default function useDisponibilidadTurnos({
     setErrorServidor(null);
     setMotivoBloqueo(null);
 
+    // Parámetro único anti-caché en la URL, SIN encabezados personalizados para evitar bloqueos CORS
     const params = {
       id_medico: idMedico,
       id_especialidad: idEspecialidad,
       fecha: fecha,
-      _t: Date.now(), // Parámetro único anti-caché
+      _t: Date.now(),
     };
 
     if (rolUsuario) {
@@ -66,11 +68,6 @@ export default function useDisponibilidadTurnos({
       .get('/catalogos/disponibilidad', {
         params,
         signal: nuevoController.signal,
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          Pragma: 'no-cache',
-          Expires: '0',
-        },
       })
       .then((res) => {
         // Ignorar respuesta si ya se disparó una petición más reciente
@@ -101,6 +98,14 @@ export default function useDisponibilidadTurnos({
         }
 
         setTurnos([]);
+        const codigo = err.response?.status;
+        if (codigo === 401) {
+          localStorage.removeItem('token_clinica');
+          localStorage.removeItem('usuario_clinica');
+          window.location.href = '/login?motivo=sesion_expirada';
+          return;
+        }
+
         const msj =
           err.response?.data?.mensaje ||
           'No se pudo conectar con el servidor para consultar los turnos disponibles.';
@@ -113,8 +118,11 @@ export default function useDisponibilidadTurnos({
       });
   }, [activo, idMedico, idEspecialidad, fecha, rolUsuario]);
 
-  // Consulta reactiva cuando cambian especialidad, médico o fecha
+  // Consulta reactiva y limpieza de selección cuando cambian especialidad, médico o fecha
   useEffect(() => {
+    if (onDeseleccionarTurno) {
+      onDeseleccionarTurno();
+    }
     consultarDisponibilidad();
 
     return () => {
@@ -122,52 +130,53 @@ export default function useDisponibilidadTurnos({
         abortControllerRef.current.abort();
       }
     };
-  }, [consultarDisponibilidad]);
+  }, [idMedico, idEspecialidad, fecha, activo]);
 
-  // Monitoreo de foco y visibilidad de pestaña (visibilitychange y focus)
+  // Monitoreo de foco y visibilidad de pestaña: máximo una vez cada 10 segundos
   useEffect(() => {
     if (!activo) return;
 
-    const manejarVisibilidad = () => {
-      if (
-        document.visibilityState === 'visible' &&
-        idMedico &&
-        idEspecialidad &&
-        fecha
-      ) {
-        consultarDisponibilidad();
+    const manejarRefrescoFoco = () => {
+      if (document.visibilityState === 'visible' && idMedico && idEspecialidad && fecha) {
+        const ahora = Date.now();
+        if (ahora - ultimoRefrescoRef.current >= 10000) {
+          ultimoRefrescoRef.current = ahora;
+          consultarDisponibilidad();
+        }
       }
     };
 
-    const manejarFoco = () => {
-      if (idMedico && idEspecialidad && fecha) {
-        consultarDisponibilidad();
-      }
-    };
-
-    document.addEventListener('visibilitychange', manejarVisibilidad);
-    window.addEventListener('focus', manejarFoco);
+    document.addEventListener('visibilitychange', manejarRefrescoFoco);
+    window.addEventListener('focus', manejarRefrescoFoco);
 
     return () => {
-      document.removeEventListener('visibilitychange', manejarVisibilidad);
-      window.removeEventListener('focus', manejarFoco);
+      document.removeEventListener('visibilitychange', manejarRefrescoFoco);
+      window.removeEventListener('focus', manejarRefrescoFoco);
     };
   }, [activo, idMedico, idEspecialidad, fecha, consultarDisponibilidad]);
 
-  // Si el turno seleccionado ya no está disponible tras una recarga, deseleccionarlo reactivamente
+  // Si el turno seleccionado ya no está disponible tras una recarga (o la lista llega vacía),
+  // deseleccionarlo reactivamente. Solo se evalúa cuando NO está cargando (!cargando)
+  // para evitar deselecciones transitorias mientras los datos viajan por la red.
   useEffect(() => {
-    if (turnoSeleccionado && turnos.length > 0) {
-      const sigueDisponible = turnos.some(
-        (t) =>
-          (t.disponible === true || t.disponible === 1) &&
-          t.hora_inicio === turnoSeleccionado.hora_inicio
-      );
+    if (!cargando && turnoSeleccionado) {
+      if (turnos.length === 0) {
+        if (onDeseleccionarTurno) {
+          onDeseleccionarTurno();
+        }
+      } else {
+        const sigueDisponible = turnos.some(
+          (t) =>
+            (t.disponible === true || t.disponible === 1) &&
+            t.hora_inicio === turnoSeleccionado.hora_inicio
+        );
 
-      if (!sigueDisponible && onDeseleccionarTurno) {
-        onDeseleccionarTurno();
+        if (!sigueDisponible && onDeseleccionarTurno) {
+          onDeseleccionarTurno();
+        }
       }
     }
-  }, [turnos, turnoSeleccionado, onDeseleccionarTurno]);
+  }, [cargando, turnos, turnoSeleccionado, onDeseleccionarTurno]);
 
   const turnosDisponibles = turnos.filter(
     (t) => t.disponible === true || t.disponible === 1

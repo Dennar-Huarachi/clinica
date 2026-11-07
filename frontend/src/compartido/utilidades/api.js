@@ -9,6 +9,7 @@ const apiBaseURL = rawBaseURL.endsWith('/api') ? rawBaseURL : `${rawBaseURL}/api
 // Instancia de axios para comunicarse con la API del backend (Laravel).
 const api = axios.create({
   baseURL: apiBaseURL,
+  withCredentials: true,
 });
 
 // Interceptor de peticiones: adjuntar token Bearer si existe en localStorage

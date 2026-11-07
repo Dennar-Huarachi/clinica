@@ -23,8 +23,8 @@ class ConsultarDisponibilidadServicio
         // 2. Canal de reserva web (RN18)
         if ($rolUsuario === 'paciente') {
             $especialidad = DB::table('especialidades')->where('id_especialidad', $idEspecialidad)->first();
-            if ($especialidad && isset($especialidad->reservable_en_linea) && $especialidad->reservable_en_linea === false) {
-                throw new \Exception('Esta especialidad solo puede ser agendada presencialmente en ventanilla o recepción.', 403);
+            if ($especialidad && isset($especialidad->reservable_en_linea) && !$especialidad->reservable_en_linea) {
+                throw new \Exception('Esta especialidad solo puede ser agendada presencialmente en ventanilla o recepción (RN18).', 403);
             }
         }
 

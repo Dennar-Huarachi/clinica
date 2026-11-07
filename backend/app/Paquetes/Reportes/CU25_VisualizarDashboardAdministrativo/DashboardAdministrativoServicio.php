@@ -13,11 +13,11 @@ class DashboardAdministrativoServicio
      */
     public function obtenerMetricas(): array
     {
-        $hoy = Carbon::today()->toDateString();
-        $inicioMes = Carbon::now()->startOfMonth()->toDateString();
-        $finMes = Carbon::now()->endOfMonth()->toDateString();
-        $inicioSemana = Carbon::now()->startOfWeek()->toDateString();
-        $finSemana = Carbon::now()->endOfWeek()->toDateString();
+        $hoy = Carbon::today('America/La_Paz')->toDateString();
+        $inicioMes = Carbon::now('America/La_Paz')->startOfMonth()->toDateString();
+        $finMes = Carbon::now('America/La_Paz')->endOfMonth()->toDateString();
+        $inicioSemana = Carbon::now('America/La_Paz')->startOfWeek()->toDateString();
+        $finSemana = Carbon::now('America/La_Paz')->endOfWeek()->toDateString();
 
         // 1. Catálogos y Padrón Activo
         $totalPacientes = DB::table('pacientes')->where('estado', 'activo')->count();

@@ -40,14 +40,42 @@ class RegistrarAtencionClinicaControlador extends Controller
 
     /**
      * Consulta el detalle de la atención médica vinculada a una cita.
+     * RN19: Asegura que ni pacientes ni médicos vean atenciones ajenas.
      */
     public function showPorCita(Request $request, int $idCita): JsonResponse
     {
         try {
+            $usuario = $request->attributes->get('usuario_autenticado');
+            if (!$usuario) {
+                return RespuestaApi::error('Sesión no identificada.', 401);
+            }
+
             $atencion = $this->servicio->consultarPorCita($idCita);
             if (!$atencion) {
                 return RespuestaApi::error('No se encontró atención médica registrada para esta cita.', 404);
             }
+
+            $rol = strtolower($usuario->rol ?? '');
+            if ($rol === 'paciente') {
+                $idPac = (int)($usuario->id_paciente ?? 0);
+                if (!$idPac && !empty($usuario->id_persona)) {
+                    $p = DB::table('pacientes')->where('id_persona', $usuario->id_persona)->first();
+                    $idPac = (int)($p?->id_paciente ?? 0);
+                }
+                if ((int)$atencion->id_paciente !== $idPac) {
+                    return RespuestaApi::error('Acceso denegado: no tiene autorización para consultar la atención médica de otro paciente.', 403);
+                }
+            } elseif ($rol === 'medico') {
+                $idMed = (int)($usuario->id_medico ?? 0);
+                if (!$idMed && !empty($usuario->id_persona)) {
+                    $m = DB::table('medicos')->where('id_persona', $usuario->id_persona)->first();
+                    $idMed = (int)($m?->id_medico ?? 0);
+                }
+                if ((int)$atencion->id_medico !== $idMed) {
+                    return RespuestaApi::error('Acceso denegado: no tiene autorización para consultar atenciones de otro profesional.', 403);
+                }
+            }
+
             return RespuestaApi::exito($atencion);
         } catch (\Exception $e) {
             return RespuestaApi::error('Error al consultar atención clínica: ' . $e->getMessage(), 500);

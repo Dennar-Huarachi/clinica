@@ -21,6 +21,14 @@ class ConsultarBitacoraControlador extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
+            $usuario = $request->attributes->get('usuario_autenticado');
+            if (!$usuario) {
+                return RespuestaApi::error('Sesión no identificada.', 401);
+            }
+            if (strtolower($usuario->rol ?? '') !== 'administrador') {
+                return RespuestaApi::error('Acceso denegado: solo el administrador puede consultar la bitácora de auditoría.', 403);
+            }
+
             $eventos = $this->servicio->consultar(
                 $request->query('caso_uso'),
                 $request->query('accion') ?? $request->query('evento'),

@@ -14,7 +14,7 @@ class ManejadorSesion
      */
     public function handle(Request $request, Closure $next)
     {
-        $token = $request->bearerToken();
+        $token = $request->bearerToken() ?: $request->cookie('token_clinica');
 
         if (!$token) {
             return RespuestaApi::error('Acceso no autorizado: se requiere un token de sesión válido', 401);

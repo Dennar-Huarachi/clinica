@@ -49,12 +49,13 @@ class RegistrarAtencionClinicaServicio
                 'updated_at' => now(),
             ], 'id_atencion');
 
-            // 5. Cambio automático de estado de la cita a 'atendida' (id=4)
+            // 5. Cambio automático de estado de la cita a 'atendida' (id=5)
             $estadoAtendida = DB::table('estados_cita')->where('codigo', 'atendida')->first();
-            $idEstadoAtendida = $estadoAtendida ? $estadoAtendida->id_estado_cita : 4;
+            $idEstadoAtendida = $estadoAtendida ? (int)$estadoAtendida->id_estado_cita : 5;
 
             DB::table('citas')->where('id_cita', $idCita)->update([
                 'id_estado_cita' => $idEstadoAtendida,
+                'estado' => 'activo',
                 'updated_at' => now(),
             ]);
 

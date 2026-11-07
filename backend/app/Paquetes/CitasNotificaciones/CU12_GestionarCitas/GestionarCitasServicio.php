@@ -20,23 +20,90 @@ class GestionarCitasServicio
      */
     public function crear(array $datos, ?int $idUsuarioOperador = null): array
     {
-        return DB::transaction(function () use ($datos, $idUsuarioOperador) {
+        try {
+            return DB::transaction(function () use ($datos, $idUsuarioOperador) {
             $fecha = $datos['fecha_cita'];
             $horaInicioStr = $datos['hora_inicio'];
             $idMedico = $datos['id_medico'];
             $idEspecialidad = $datos['id_especialidad'];
             $idPaciente = $datos['id_paciente'];
 
-            // 1. Obtener duración del turno para calcular hora_fin
+            // RN06: Validación de fecha no pasada
+            $hoy = Carbon::today('America/La_Paz')->format('Y-m-d');
+            if ($fecha < $hoy) {
+                throw new \Exception('No se pueden programar citas médicas en fechas pasadas (RN06).', 422);
+            }
+
+            // RN04: El médico debe estar activo
+            $medico = DB::table('medicos')->where('id_medico', $idMedico)->first();
+            if (!$medico || $medico->estado !== 'activo') {
+                throw new \Exception('El médico seleccionado no se encuentra activo o no existe (RN04).', 422);
+            }
+
+            // RN03: Paciente activo y Especialidad activa
+            $paciente = DB::table('pacientes')->where('id_paciente', $idPaciente)->first();
+            if (!$paciente || $paciente->estado !== 'activo') {
+                throw new \Exception('El paciente seleccionado no se encuentra activo o no existe (RN03).', 422);
+            }
+
             $especialidad = DB::table('especialidades')->where('id_especialidad', $idEspecialidad)->first();
+            if (!$especialidad || $especialidad->estado !== 'activo') {
+                throw new \Exception('La especialidad seleccionada no se encuentra activa o no existe.', 422);
+            }
+
+            $medicoTieneEspecialidad = DB::table('medico_especialidad')
+                ->where('id_medico', $idMedico)
+                ->where('id_especialidad', $idEspecialidad)
+                ->exists();
+            if (!$medicoTieneEspecialidad) {
+                throw new \Exception('El médico no atiende la especialidad seleccionada (RN03).', 422);
+            }
+
+            // RN18: Canal paciente en especialidades solo presenciales
+            $rolOperador = null;
+            if ($idUsuarioOperador) {
+                $rolOperador = DB::table('usuarios')
+                    ->join('roles', 'usuarios.id_rol', '=', 'roles.id_rol')
+                    ->where('usuarios.id_usuario', $idUsuarioOperador)
+                    ->value('roles.nombre');
+            }
+            if (strtolower((string)$rolOperador) === 'paciente' && isset($especialidad->reservable_en_linea) && !$especialidad->reservable_en_linea) {
+                throw new \Exception('Esta especialidad solo puede ser agendada presencialmente en ventanilla o recepción (RN18).', 403);
+            }
+
+            // 1. Obtener duración del turno para calcular hora_fin
             $duracion = $especialidad?->duracion_turno_minutos ?: 15;
 
-            $horaInicio = Carbon::parse($fecha . ' ' . $horaInicioStr);
+            $horaInicio = Carbon::parse($fecha . ' ' . $horaInicioStr, 'America/La_Paz');
             $horaFin = $horaInicio->copy()->addMinutes($duracion);
             $horaFinStr = $horaFin->format('H:i');
 
-            // 2. Control de concurrencia: Bloquear consultas activas del médico para esta fecha
-            // Previene condición de carrera (race conditions) usando la regla unificada de ocupación (Cita::querySolapamiento)
+            // RN05: Horario de atención del médico configurado para ese día de la semana
+            $carbonFecha = Carbon::parse($fecha, 'America/La_Paz');
+            $diaSemana = (int)$carbonFecha->dayOfWeekIso;
+
+            $horarioValido = DB::table('horarios_atencion')
+                ->where('id_medico', $idMedico)
+                ->where('id_especialidad', $idEspecialidad)
+                ->where('dia_semana', $diaSemana)
+                ->where('estado', 'activo')
+                ->where('hora_inicio', '<=', $horaInicioStr)
+                ->where('hora_fin', '>=', $horaFinStr)
+                ->exists();
+
+            if (!$horarioValido) {
+                throw new \Exception("El turno médico solicitado ({$horaInicioStr} - {$horaFinStr}) se encuentra fuera del horario de atención del profesional (RN05).", 422);
+            }
+
+            // 2. Control de concurrencia a nivel de base de datos:
+            // a) Bloqueo pesimista sobre la fila del médico para serializar transacciones concurrentes
+            // hacia la misma agenda (bloquear una consulta de citas sin filas no bloquea nada).
+            DB::table('medicos')
+                ->where('id_medico', $idMedico)
+                ->lockForUpdate()
+                ->first();
+
+            // b) Consulta de solapamiento con bloqueo de citas existentes
             $solapamiento = Cita::querySolapamiento($idMedico, $fecha, $horaInicioStr, $horaFinStr)
                 ->lockForUpdate()
                 ->first();
@@ -166,17 +233,32 @@ class GestionarCitasServicio
                 'estado_pago' => 'completado',
             ];
         });
+    } catch (\Illuminate\Database\UniqueConstraintViolationException | \Illuminate\Database\QueryException $e) {
+        $esConflicto = ($e->getCode() === '23505') || str_contains($e->getMessage(), 'uq_citas_turno_activo');
+        if ($esConflicto) {
+            $h = $datos['hora_inicio'] ?? '';
+            throw new \Exception("El turno médico seleccionado ({$h}) ya ha sido reservado por otro paciente. Por favor elija otro turno disponible.", 409);
+        }
+        throw $e;
     }
+}
 
     /**
      * Reprogramación atómica de cita médica con validación de no colisión e IDOR (RN19).
      */
     public function reprogramar(int $idCita, array $datos, $usuarioOperador = null): array
     {
-        return DB::transaction(function () use ($idCita, $datos, $usuarioOperador) {
+        try {
+            return DB::transaction(function () use ($idCita, $datos, $usuarioOperador) {
             $cita = DB::table('citas')->where('id_cita', $idCita)->lockForUpdate()->first();
             if (!$cita || $cita->estado === 'cancelada') {
                 throw new \Exception('La cita indicada no existe o ya está cancelada.', 404);
+            }
+
+            // RN16: Citas en estado cerrado (atendida, inasistencia, cancelada) no pueden reactivarse ni reprogramarse
+            $estadoCitaActual = DB::table('estados_cita')->where('id_estado_cita', $cita->id_estado_cita)->value('codigo');
+            if (in_array($estadoCitaActual, ['atendida', 'cancelada', 'inasistencia']) || $cita->estado === 'cancelada') {
+                throw new \Exception('Una cita en estado cerrado (' . ucfirst($estadoCitaActual ?: 'cerrada') . ') no puede ser reprogramada (RN16).', 422);
             }
 
             $idUsuario = is_object($usuarioOperador) ? ($usuarioOperador->id_usuario ?? null) : $usuarioOperador;
@@ -197,12 +279,42 @@ class GestionarCitasServicio
             $fecha = $datos['fecha_cita'];
             $horaInicioStr = $datos['hora_inicio'];
 
+            // RN06: La nueva fecha no puede ser pasada
+            $hoy = Carbon::today('America/La_Paz')->format('Y-m-d');
+            if ($fecha < $hoy) {
+                throw new \Exception('No se puede reprogramar una cita a fechas pasadas (RN06).', 422);
+            }
+
             $especialidad = DB::table('especialidades')->where('id_especialidad', $cita->id_especialidad)->first();
             $duracion = $especialidad?->duracion_turno_minutos ?: 15;
 
-            $horaInicio = Carbon::parse($fecha . ' ' . $horaInicioStr);
+            $horaInicio = Carbon::parse($fecha . ' ' . $horaInicioStr, 'America/La_Paz');
             $horaFin = $horaInicio->copy()->addMinutes($duracion);
             $horaFinStr = $horaFin->format('H:i');
+
+            // RN05: Horario de atención del médico para el nuevo día
+            $carbonFecha = Carbon::parse($fecha, 'America/La_Paz');
+            $diaSemana = (int)$carbonFecha->dayOfWeekIso;
+
+            $horarioValido = DB::table('horarios_atencion')
+                ->where('id_medico', $cita->id_medico)
+                ->where('id_especialidad', $cita->id_especialidad)
+                ->where('dia_semana', $diaSemana)
+                ->where('estado', 'activo')
+                ->where('hora_inicio', '<=', $horaInicioStr)
+                ->where('hora_fin', '>=', $horaFinStr)
+                ->exists();
+
+            if (!$horarioValido) {
+                throw new \Exception("El nuevo turno seleccionado ({$horaInicioStr} - {$horaFinStr}) está fuera del horario de atención del profesional (RN05).", 422);
+            }
+
+            // Control de concurrencia: Bloqueo pesimista del registro del médico para serializar
+            // operaciones simultáneas hacia su agenda de turnos
+            DB::table('medicos')
+                ->where('id_medico', $cita->id_medico)
+                ->lockForUpdate()
+                ->first();
 
             // Verificar solapamiento usando la regla unificada de ocupación (Cita::querySolapamiento)
             $solapamiento = Cita::querySolapamiento($cita->id_medico, $fecha, $horaInicioStr, $horaFinStr, $idCita)
@@ -224,6 +336,7 @@ class GestionarCitasServicio
                 'hora_inicio' => $horaInicioStr,
                 'hora_fin' => $horaFinStr,
                 'id_estado_cita' => $idEstado,
+                'estado' => 'activo',
                 'es_postergada' => false,
                 'observaciones' => $obs,
                 'updated_at' => now(),
@@ -246,7 +359,15 @@ class GestionarCitasServicio
                 'nueva_hora' => $horaInicioStr,
             ];
         });
+    } catch (\Illuminate\Database\UniqueConstraintViolationException | \Illuminate\Database\QueryException $e) {
+        $esConflicto = ($e->getCode() === '23505') || str_contains($e->getMessage(), 'uq_citas_turno_activo');
+        if ($esConflicto) {
+            $h = $datos['hora_inicio'] ?? '';
+            throw new \Exception("El nuevo turno seleccionado ({$h}) ya está ocupado por otra cita agendada.", 409);
+        }
+        throw $e;
     }
+}
 
     /**
      * Cancelación lógica de cita (PROHIBIDO BORRADO FÍSICO).
@@ -260,8 +381,12 @@ class GestionarCitasServicio
                 throw new \Exception('Cita no encontrada', 404);
             }
 
-            if ($cita->estado === 'cancelada') {
+            if ($cita->estado === 'cancelada' || (int)$cita->id_estado_cita === 6) {
                 throw new \Exception('La cita ya se encuentra cancelada', 400);
+            }
+
+            if (in_array((int)$cita->id_estado_cita, [5, 7])) {
+                throw new \Exception('No se puede cancelar una cita que ya fue atendida o marcada como inasistencia.', 422);
             }
 
             $rol = strtolower($usuarioOperador->rol ?? '');
@@ -274,19 +399,26 @@ class GestionarCitasServicio
                     $paciente = DB::table('pacientes')->where('id_usuario', $usuarioOperador->id_usuario)->first();
                     $idPacienteUsuario = (int)($paciente?->id_paciente ?? 0);
                 }
+                if (!$idPacienteUsuario && !empty($usuarioOperador->id_persona)) {
+                    $paciente = DB::table('pacientes')->where('id_persona', $usuarioOperador->id_persona)->first();
+                    $idPacienteUsuario = (int)($paciente?->id_paciente ?? 0);
+                }
                 if ((int)$cita->id_paciente !== $idPacienteUsuario) {
                     throw new \Exception('No tiene autorización para gestionar citas de otro paciente.', 403);
                 }
             }
 
-            // Calcular diferencia de horas respecto al turno
-            $fechaHoraCita = Carbon::parse($cita->fecha_cita . ' ' . $cita->hora_inicio);
-            $horasDiferencia = now()->diffInHours($fechaHoraCita, false);
+            // Calcular diferencia de horas respecto al turno (zona horaria Bolivia)
+            $fechaHoraCita = Carbon::parse($cita->fecha_cita . ' ' . $cita->hora_inicio, 'America/La_Paz');
+            $horasDiferencia = Carbon::now('America/La_Paz')->diffInHours($fechaHoraCita, false);
 
             $paramHoras = DB::table('parametros_sistema')->where('clave', 'HORAS_ANTICIPACION_CANCELAR')->value('valor') ?: 12;
             $horasMinimas = (int)$paramHoras;
 
-            if ($esPaciente && $horasDiferencia < $horasMinimas) {
+            // Las citas postergadas por suspensión pueden cancelarse sin restricción de horas
+            $esPostergada = ((int)$cita->id_estado_cita === 9);
+
+            if ($esPaciente && !$esPostergada && $horasDiferencia < $horasMinimas) {
                 throw new \Exception("Las cancelaciones con derecho a reembolso deben realizarse con al menos {$horasMinimas} horas de anticipación. Para asistencia personalizada comuníquese con recepción.", 422);
             }
 
@@ -298,7 +430,7 @@ class GestionarCitasServicio
             );
 
             $estadoCancelada = DB::table('estados_cita')->where('codigo', 'cancelada')->first();
-            $idEstado = $estadoCancelada ? $estadoCancelada->id_estado_cita : 5;
+            $idEstado = $estadoCancelada ? (int)$estadoCancelada->id_estado_cita : 6;
 
             $obs = trim(($cita->observaciones ?? '') . " [Cancelada: " . ($motivo ?? 'Sin motivo') . "]");
 
@@ -366,10 +498,11 @@ class GestionarCitasServicio
             }
 
             $estadoConfirmada = DB::table('estados_cita')->where('codigo', 'confirmada')->first();
-            $idConfirmada = $estadoConfirmada ? $estadoConfirmada->id_estado_cita : 2;
+            $idConfirmada = $estadoConfirmada ? (int)$estadoConfirmada->id_estado_cita : 3;
 
             DB::table('citas')->where('id_cita', $idCita)->update([
                 'id_estado_cita' => $idConfirmada,
+                'estado' => 'activo',
                 'updated_at' => now(),
             ]);
 

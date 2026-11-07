@@ -115,4 +115,62 @@ class GestionarCitasControlador extends Controller
             return RespuestaApi::error($e->getMessage(), $codigo);
         }
     }
+
+    /**
+     * Consulta el detalle de una cita médica específica (RN19 Anti-IDOR).
+     */
+    public function show(Request $request, int $id): JsonResponse
+    {
+        $usuario = $request->attributes->get('usuario_autenticado');
+        if (!$usuario) {
+            return RespuestaApi::error('Sesión no identificada.', 401);
+        }
+
+        $cita = DB::table('citas')
+            ->join('estados_cita', 'citas.id_estado_cita', '=', 'estados_cita.id_estado_cita')
+            ->join('medicos', 'citas.id_medico', '=', 'medicos.id_medico')
+            ->join('personas as p_medico', 'medicos.id_persona', '=', 'p_medico.id_persona')
+            ->join('pacientes', 'citas.id_paciente', '=', 'pacientes.id_paciente')
+            ->join('personas as p_paciente', 'pacientes.id_persona', '=', 'p_paciente.id_persona')
+            ->join('especialidades', 'citas.id_especialidad', '=', 'especialidades.id_especialidad')
+            ->where('citas.id_cita', $id)
+            ->select(
+                'citas.*',
+                'estados_cita.nombre as estado_nombre',
+                'estados_cita.codigo as estado_codigo',
+                'p_medico.nombres as medico_nombres',
+                'p_medico.apellidos as medico_apellidos',
+                'p_paciente.nombres as paciente_nombres',
+                'p_paciente.apellidos as paciente_apellidos',
+                'especialidades.nombre as especialidad_nombre'
+            )
+            ->first();
+
+        if (!$cita) {
+            return RespuestaApi::error('Cita médica no encontrada.', 404);
+        }
+
+        $rol = strtolower($usuario->rol ?? '');
+        if ($rol === 'paciente') {
+            $idPacienteUsuario = (int)($usuario->id_paciente ?? 0);
+            if (!$idPacienteUsuario && !empty($usuario->id_persona)) {
+                $p = DB::table('pacientes')->where('id_persona', $usuario->id_persona)->first();
+                $idPacienteUsuario = (int)($p?->id_paciente ?? 0);
+            }
+            if ((int)$cita->id_paciente !== $idPacienteUsuario) {
+                return RespuestaApi::error('Acceso denegado: no tiene autorización para ver la cita de otro paciente.', 403);
+            }
+        } elseif ($rol === 'medico') {
+            $idMedicoUsuario = (int)($usuario->id_medico ?? 0);
+            if (!$idMedicoUsuario && !empty($usuario->id_persona)) {
+                $m = DB::table('medicos')->where('id_persona', $usuario->id_persona)->first();
+                $idMedicoUsuario = (int)($m?->id_medico ?? 0);
+            }
+            if ((int)$cita->id_medico !== $idMedicoUsuario) {
+                return RespuestaApi::error('Acceso denegado: no tiene autorización para ver citas asignadas a otro profesional.', 403);
+            }
+        }
+
+        return RespuestaApi::exito($cita);
+    }
 }

@@ -18,8 +18,16 @@ class GenerarRestaurarCopiasSeguridadControlador extends Controller
     /**
      * Lista el historial cronológico de copias de seguridad de base de datos (CU-26).
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
+        $usuario = $request->attributes->get('usuario_autenticado');
+        if (!$usuario) {
+            return RespuestaApi::error('Sesión no identificada.', 401);
+        }
+        if (strtolower($usuario->rol ?? '') !== 'administrador') {
+            return RespuestaApi::error('Acceso denegado: solo el administrador tiene privilegios de gestión de respaldos.', 403);
+        }
+
         return RespuestaApi::exito($this->servicio->listar());
     }
 
@@ -30,6 +38,13 @@ class GenerarRestaurarCopiasSeguridadControlador extends Controller
     {
         try {
             $usuario = $request->attributes->get('usuario_autenticado');
+            if (!$usuario) {
+                return RespuestaApi::error('Sesión no identificada.', 401);
+            }
+            if (strtolower($usuario->rol ?? '') !== 'administrador') {
+                return RespuestaApi::error('Acceso denegado: solo el administrador puede generar copias de seguridad.', 403);
+            }
+
             $resultado = $this->servicio->generar($usuario?->id_usuario);
 
             return RespuestaApi::exito(
@@ -49,6 +64,13 @@ class GenerarRestaurarCopiasSeguridadControlador extends Controller
     {
         try {
             $usuario = $request->attributes->get('usuario_autenticado');
+            if (!$usuario) {
+                return RespuestaApi::error('Sesión no identificada.', 401);
+            }
+            if (strtolower($usuario->rol ?? '') !== 'administrador') {
+                return RespuestaApi::error('Acceso denegado: solo el administrador puede descargar copias de seguridad.', 403);
+            }
+
             $archivo = $this->servicio->obtenerParaDescarga($id, $usuario?->id_usuario);
 
             $headers = [
@@ -72,6 +94,13 @@ class GenerarRestaurarCopiasSeguridadControlador extends Controller
     {
         try {
             $usuario = $request->attributes->get('usuario_autenticado');
+            if (!$usuario) {
+                return RespuestaApi::error('Sesión no identificada.', 401);
+            }
+            if (strtolower($usuario->rol ?? '') !== 'administrador') {
+                return RespuestaApi::error('Acceso denegado: solo el administrador puede restaurar la base de datos.', 403);
+            }
+
             $resultado = $this->servicio->restaurar($id, $usuario?->id_usuario);
 
             return RespuestaApi::exito(

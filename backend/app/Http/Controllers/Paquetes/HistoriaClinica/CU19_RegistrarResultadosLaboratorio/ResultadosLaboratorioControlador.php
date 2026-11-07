@@ -31,8 +31,16 @@ class ResultadosLaboratorioControlador extends Controller
 
         if ($rol === 'paciente') {
             $idPaciente = (int)($usuario->id_paciente ?? 0);
+            if (!$idPaciente && !empty($usuario->id_persona)) {
+                $p = DB::table('pacientes')->where('id_persona', $usuario->id_persona)->first();
+                $idPaciente = (int)($p?->id_paciente ?? 0);
+            }
             if (!$idPaciente) {
                 return RespuestaApi::error('Perfil de paciente no vinculado al usuario en sesión.', 403);
+            }
+            $requestedId = $request->query('id_paciente');
+            if ($requestedId && (int)$requestedId !== $idPaciente) {
+                return RespuestaApi::error('Acceso denegado: no tiene autorización para ver los resultados de laboratorio de otro paciente.', 403);
             }
         } else {
             $idPaciente = $request->query('id_paciente') ? (int)$request->query('id_paciente') : null;
@@ -52,6 +60,11 @@ class ResultadosLaboratorioControlador extends Controller
     {
         try {
             $usuario = $request->attributes->get('usuario_autenticado');
+            $rol = strtolower($usuario?->rol ?? '');
+            if (!in_array($rol, ['administrador', 'medico', 'recepcionista'])) {
+                return RespuestaApi::error('Acceso denegado: no tiene privilegios para registrar estudios de laboratorio.', 403);
+            }
+
             $id = $this->servicio->registrar($request->validated(), $usuario?->id_usuario);
 
             return RespuestaApi::exito(

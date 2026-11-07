@@ -322,6 +322,23 @@ class AdministrarUsuariosRolesServicio
                 throw new \Exception('Usuario no encontrado', 404);
             }
 
+            // Proteger contra la desactivación o desmonte del último administrador activo
+            $rolAdmin = DB::table('roles')->where('nombre', 'administrador')->value('id_rol');
+            if ($usuario->id_rol == $rolAdmin && $usuario->estado === 'activo') {
+                $nuevoRol = isset($datos['id_rol']) ? (int)$datos['id_rol'] : $usuario->id_rol;
+                $nuevoEstado = $datos['estado'] ?? $usuario->estado;
+                if ($nuevoRol != $rolAdmin || $nuevoEstado === 'inactivo') {
+                    $otrosAdmins = DB::table('usuarios')
+                        ->where('id_rol', $rolAdmin)
+                        ->where('estado', 'activo')
+                        ->where('id_usuario', '!=', $idUsuario)
+                        ->count();
+                    if ($otrosAdmins === 0) {
+                        throw new \Exception('No es posible desactivar ni cambiar el rol al único administrador activo del sistema.', 422);
+                    }
+                }
+            }
+
             // Verificar si el correo ya está en uso por otro usuario
             if (isset($datos['correo']) && trim($datos['correo']) !== $usuario->correo) {
                 $otroUsuario = DB::table('usuarios')
@@ -389,6 +406,19 @@ class AdministrarUsuariosRolesServicio
         }
 
         $nuevoEstado = $usuario->estado === 'activo' ? 'inactivo' : 'activo';
+
+        // Proteger contra la desactivación del último administrador activo
+        $rolAdmin = DB::table('roles')->where('nombre', 'administrador')->value('id_rol');
+        if ($usuario->id_rol == $rolAdmin && $usuario->estado === 'activo' && $nuevoEstado === 'inactivo') {
+            $otrosAdmins = DB::table('usuarios')
+                ->where('id_rol', $rolAdmin)
+                ->where('estado', 'activo')
+                ->where('id_usuario', '!=', $idUsuario)
+                ->count();
+            if ($otrosAdmins === 0) {
+                throw new \Exception('No es posible desactivar al único administrador activo del sistema.', 422);
+            }
+        }
 
         DB::table('usuarios')->where('id_usuario', $idUsuario)->update([
             'estado' => $nuevoEstado,

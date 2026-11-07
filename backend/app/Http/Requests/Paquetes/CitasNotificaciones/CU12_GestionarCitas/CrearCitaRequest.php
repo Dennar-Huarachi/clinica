@@ -45,6 +45,8 @@ class CrearCitaRequest extends FormRequestPersonalizado
                 $this->merge(['metodo_pago' => 'qr_transferencia']);
             } elseif (in_array($metodo, ['tarjeta', 'tarjeta_debito_credito', 'debito', 'credito', 'card'])) {
                 $this->merge(['metodo_pago' => 'tarjeta_debito_credito']);
+            } elseif (in_array($metodo, ['efectivo', 'cash'])) {
+                $this->merge(['metodo_pago' => 'efectivo']);
             }
         }
     }
@@ -59,7 +61,7 @@ class CrearCitaRequest extends FormRequestPersonalizado
             'hora_inicio' => 'required|date_format:H:i',
             'motivo_consulta' => 'nullable|string|max:255',
             'observaciones' => 'nullable|string',
-            'metodo_pago' => 'nullable|string|in:qr_transferencia,tarjeta_debito_credito,qr,tarjeta',
+            'metodo_pago' => 'nullable|string|in:qr_transferencia,tarjeta_debito_credito,qr,tarjeta,efectivo',
             'referencia_simulada' => 'nullable|string|max:100',
             'detalles_pasarela' => 'nullable|array',
         ];

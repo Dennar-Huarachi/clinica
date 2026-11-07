@@ -80,6 +80,7 @@ class Cita extends Model
     {
         return $query
             ->where("{$aliasCitas}.estado", '!=', 'cancelada')
+            ->where("{$aliasCitas}.es_postergada", false)
             ->whereIn("{$aliasCitas}.id_estado_cita", function ($sub) {
                 $sub->select('id_estado_cita')
                     ->from('estados_cita')

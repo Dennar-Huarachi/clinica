@@ -33,7 +33,7 @@ class ConsultarHistorialClinicoControlador extends Controller
         // Blindaje estricto Anti-IDOR (RN19)
         if ($rol === 'paciente') {
             $idPacienteAutenticado = (int)($usuario->id_paciente ?? 0);
-            if (!$idPacienteAutenticado) {
+            if (!$idPacienteAutenticado && !empty($usuario->id_persona)) {
                 $paciente = DB::table('pacientes')->where('id_persona', $usuario->id_persona)->first();
                 $idPacienteAutenticado = (int)($paciente?->id_paciente ?? 0);
             }
@@ -42,7 +42,12 @@ class ConsultarHistorialClinicoControlador extends Controller
                 return RespuestaApi::error('Perfil de paciente no vinculado a la cuenta activa.', 403);
             }
 
-            // Ignorar el parámetro de URL y asignar el ID del paciente autenticado
+            // Si intenta acceder al expediente de otro paciente, rechazar con 403 (RN19)
+            if ($idPaciente !== 0 && (int)$idPaciente !== $idPacienteAutenticado) {
+                return RespuestaApi::error('Acceso denegado: no tiene privilegios para consultar el expediente de otro paciente.', 403);
+            }
+
+            // Forzar el ID del paciente autenticado
             $idPaciente = $idPacienteAutenticado;
         }
 

@@ -9,7 +9,22 @@ class RegistrarsePacienteRequest extends FormRequestPersonalizado
     public function rules(): array
     {
         return [
-            'ci' => 'required|string|max:20|unique:personas,ci',
+            'ci' => [
+                'required',
+                'string',
+                'max:20',
+                function ($attribute, $value, $fail) {
+                    $ciLimpio = trim($value);
+                    $usuarioExiste = \Illuminate\Support\Facades\DB::table('usuarios')
+                        ->join('personas', 'usuarios.id_persona', '=', 'personas.id_persona')
+                        ->where('personas.ci', $ciLimpio)
+                        ->exists();
+
+                    if ($usuarioExiste) {
+                        $fail('La cédula de identidad ya se encuentra registrada con una cuenta de usuario activa.');
+                    }
+                },
+            ],
             'nombres' => 'required|string|max:80',
             'apellidos' => 'required|string|max:80',
             'fecha_nacimiento' => 'required|date',
