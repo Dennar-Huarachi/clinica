@@ -142,13 +142,47 @@ class GestionarCitasControlador extends Controller
                 'p_medico.apellidos as medico_apellidos',
                 'p_paciente.nombres as paciente_nombres',
                 'p_paciente.apellidos as paciente_apellidos',
-                'especialidades.nombre as especialidad_nombre'
+                'especialidades.nombre as especialidad_nombre',
+                'especialidades.precio_consulta as precio_consulta'
             )
             ->first();
 
         if (!$cita) {
             return RespuestaApi::error('Cita médica no encontrada.', 404);
         }
+
+        $fila = (array)$cita;
+        $precio = isset($fila['precio_consulta']) && (float)$fila['precio_consulta'] > 0
+            ? (float)$fila['precio_consulta']
+            : 100.00;
+
+        $pagos = DB::table('pagos_cita')->where('id_cita', $fila['id_cita'])->get();
+        $montoPagado = (float)$pagos->where('estado_pago', 'completado')->sum('monto');
+        $tieneReembolso = $pagos->contains('estado_pago', 'reembolsado');
+
+        if ($montoPagado <= 0 && (!empty($fila['pago_monto']) || !empty($fila['pago_confirmado']))) {
+            $montoPagado = !empty($fila['pago_monto']) ? (float)$fila['pago_monto'] : 50.00;
+        }
+
+        $saldoPendiente = round(max(0, $precio - $montoPagado), 2);
+
+        if ($tieneReembolso) {
+            $estadoCobro = 'Reembolsado';
+        } elseif ($saldoPendiente <= 0) {
+            $estadoCobro = 'Pagada completa';
+        } else {
+            $estadoCobro = 'Saldo pendiente';
+        }
+
+        $fila['precioConsulta'] = $precio;
+        $fila['precio_consulta'] = $precio;
+        $fila['montoPagado'] = $montoPagado;
+        $fila['monto_pagado'] = $montoPagado;
+        $fila['saldoPendiente'] = $saldoPendiente;
+        $fila['saldo_pendiente'] = $saldoPendiente;
+        $fila['estadoCobro'] = $estadoCobro;
+        $fila['estado_cobro'] = $estadoCobro;
+        $cita = (object)$fila;
 
         $rol = strtolower($usuario->rol ?? '');
         if ($rol === 'paciente') {

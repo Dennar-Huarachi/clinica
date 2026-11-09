@@ -22,6 +22,8 @@ export default function PaginaReportes() {
   const [reporteAsistencia, setReporteAsistencia] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [exportando, setExportando] = useState(false);
+  const [exportandoPdfCitas, setExportandoPdfCitas] = useState(false);
+  const [exportandoPdfAsist, setExportandoPdfAsist] = useState(false);
   const [alerta, setAlerta] = useState(null);
   const [filtrosPlegados, setFiltrosPlegados] = useState(false);
 
@@ -120,6 +122,145 @@ export default function PaginaReportes() {
     }
   };
 
+  const ejecutarExportacionPdfCitas = async () => {
+    try {
+      setExportandoPdfCitas(true);
+      setAlerta(null);
+
+      if (fechaInicio && fechaFin && fechaInicio > fechaFin) {
+        setAlerta({
+          tipo: 'error',
+          mensaje: 'El rango cronológico es inválido: la fecha inicial no puede ser posterior a la fecha final.',
+        });
+        return;
+      }
+
+      const params = new URLSearchParams();
+      if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+      if (fechaFin) params.append('fecha_fin', fechaFin);
+      if (idEspecialidad) params.append('id_especialidad', idEspecialidad);
+      if (idMedico) params.append('id_medico', idMedico);
+      if (idEstadoCita) params.append('id_estado_cita', idEstadoCita);
+
+      // Obtener datos frescos correspondientes a los filtros
+      let datosCitas = reporteCitas;
+      if (!datosCitas || datosCitas.periodo?.inicio !== fechaInicio || datosCitas.periodo?.fin !== fechaFin) {
+        const res = await api.get(`/reportes/citas?${params.toString()}`);
+        datosCitas = res.data?.datos;
+      }
+
+      // Obtener información del usuario en sesión
+      let usuarioSesion = null;
+      try {
+        const u = localStorage.getItem('usuario_clinica');
+        if (u) usuarioSesion = JSON.parse(u);
+      } catch {
+        usuarioSesion = null;
+      }
+
+      // Importación dinámica de la utilidad PDF (CU-23)
+      const { exportarCitasPdf } = await import('../CU23_ExportarReportes/exportarPdfUtil');
+      await exportarCitasPdf({
+        citas: datosCitas?.citas || [],
+        resumen: datosCitas || {},
+        filtros: {
+          fechaInicio,
+          fechaFin,
+          idEspecialidad,
+          idMedico,
+          idEstadoCita,
+        },
+        usuario: usuarioSesion,
+        especialidades,
+        medicos,
+      });
+
+      setAlerta({
+        tipo: 'exito',
+        mensaje: `Reporte de citas en PDF generado y descargado exitosamente: reporte_citas_${fechaInicio}_a_${fechaFin}.pdf`,
+      });
+    } catch (err) {
+      console.error('Error al exportar citas a PDF:', err);
+      setAlerta({
+        tipo: 'error',
+        mensaje: 'No se pudo generar el PDF. Intente nuevamente.',
+      });
+    } finally {
+      setExportandoPdfCitas(false);
+    }
+  };
+
+  const ejecutarExportacionPdfAsistencia = async () => {
+    try {
+      setExportandoPdfAsist(true);
+      setAlerta(null);
+
+      if (fechaInicio && fechaFin && fechaInicio > fechaFin) {
+        setAlerta({
+          tipo: 'error',
+          mensaje: 'El rango cronológico es inválido: la fecha inicial no puede ser posterior a la fecha final.',
+        });
+        return;
+      }
+
+      const params = new URLSearchParams();
+      if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+      if (fechaFin) params.append('fecha_fin', fechaFin);
+      if (idEspecialidad) params.append('id_especialidad', idEspecialidad);
+      if (idMedico) params.append('id_medico', idMedico);
+
+      let datosAsist = reporteAsistencia;
+      if (!datosAsist || datosAsist.periodo?.inicio !== fechaInicio || datosAsist.periodo?.fin !== fechaFin) {
+        const res = await api.get(`/reportes/asistencia?${params.toString()}`);
+        datosAsist = res.data?.datos;
+      }
+
+      let usuarioSesion = null;
+      try {
+        const u = localStorage.getItem('usuario_clinica');
+        if (u) usuarioSesion = JSON.parse(u);
+      } catch {
+        usuarioSesion = null;
+      }
+
+      // Importación dinámica de la utilidad PDF (CU-23)
+      const { exportarCumplimientoPdf } = await import('../CU23_ExportarReportes/exportarPdfUtil');
+      await exportarCumplimientoPdf({
+        desglose: datosAsist?.desglose_por_especialidad || [],
+        totales: {
+          total_citas: datosAsist?.total_citas,
+          atendidas: datosAsist?.atendidas,
+          inasistencias: datosAsist?.inasistencias,
+          canceladas: datosAsist?.canceladas,
+          porcentajes: datosAsist?.porcentajes,
+          pacientes: datosAsist?.pacientes,
+        },
+        filtros: {
+          fechaInicio,
+          fechaFin,
+          idEspecialidad,
+          idMedico,
+        },
+        usuario: usuarioSesion,
+        especialidades,
+        medicos,
+      });
+
+      setAlerta({
+        tipo: 'exito',
+        mensaje: `Reporte de cumplimiento en PDF generado y descargado exitosamente: reporte_cumplimiento_${fechaInicio}_a_${fechaFin}.pdf`,
+      });
+    } catch (err) {
+      console.error('Error al exportar cumplimiento a PDF:', err);
+      setAlerta({
+        tipo: 'error',
+        mensaje: 'No se pudo generar el PDF. Intente nuevamente.',
+      });
+    } finally {
+      setExportandoPdfAsist(false);
+    }
+  };
+
   const columnasCitas = [
     'Código Turno',
     'Paciente y CI',
@@ -169,17 +310,33 @@ export default function PaginaReportes() {
               type="button"
               className="boton-primario rep-btn-exportar"
               onClick={() => ejecutarExportacionCSV('citas')}
-              disabled={exportando || cargando}
+              disabled={exportando || exportandoPdfCitas || exportandoPdfAsist || cargando}
             >
               {exportando ? 'Generando Archivo…' : '📥 Exportar Citas a CSV'}
             </button>
             <button
               type="button"
+              className="rep-btn-terciario rep-btn-exportar"
+              onClick={ejecutarExportacionPdfCitas}
+              disabled={exportando || exportandoPdfCitas || exportandoPdfAsist || cargando}
+            >
+              {exportandoPdfCitas ? 'Generando…' : '📄 Exportar Citas a PDF'}
+            </button>
+            <button
+              type="button"
               className="boton-secundario rep-btn-exportar"
               onClick={() => ejecutarExportacionCSV('asistencia')}
-              disabled={exportando || cargando}
+              disabled={exportando || exportandoPdfCitas || exportandoPdfAsist || cargando}
             >
               📊 Exportar Cumplimiento a CSV
+            </button>
+            <button
+              type="button"
+              className="rep-btn-terciario rep-btn-exportar"
+              onClick={ejecutarExportacionPdfAsistencia}
+              disabled={exportando || exportandoPdfCitas || exportandoPdfAsist || cargando}
+            >
+              {exportandoPdfAsist ? 'Generando…' : '📄 Exportar Cumplimiento a PDF'}
             </button>
           </div>
         </div>
@@ -656,6 +813,24 @@ export default function PaginaReportes() {
           border-radius: 8px;
           cursor: pointer;
           transition: all 0.15s ease;
+        }
+
+        .rep-btn-terciario {
+          background-color: #ffffff;
+          border: 2px solid #0A6C84;
+          color: #0A6C84;
+          border-radius: 14px;
+        }
+
+        .rep-btn-terciario:hover:not(:disabled) {
+          background-color: #F4FAFB;
+          border-color: #085568;
+          color: #085568;
+        }
+
+        .rep-btn-terciario:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
         /* Tarjeta de Filtros */

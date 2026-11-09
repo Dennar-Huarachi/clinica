@@ -42,14 +42,15 @@ backend/app/
 │   ├── Permisos/MiddlewareVerificarRol.php (Guardia RBAC por rol)
 │   ├── Sesion/ManejadorSesion.php (Bearer token y anti-IDOR)
 │   └── Validaciones/FormRequestPersonalizado.php (Sanitización anti-XSS recursiva)
-└── Models/ (Directorio reservado para extensiones de modelos)
+└── Models/
+    └── Cita.php (Modelo de dominio centralizador de ESTADOS_OCUPANTES, aplicarFiltroOcupantes() y querySolapamiento())
 ```
 
 ---
 
 ## 2. Base de Datos y Persistencia (PostgreSQL 18)
 
-La base de datos se consolida en **4 migraciones secuenciales** que estructuran **23 tablas físicas**:
+La base de datos se consolida en **5 migraciones secuenciales** que estructuran **23 tablas físicas** e índices de unicidad parcial:
 
 | Migración | Contenido y Entidades |
 | :--- | :--- |
@@ -57,6 +58,7 @@ La base de datos se consolida en **4 migraciones secuenciales** que estructuran 
 | `2026_10_22_000001_create_permisos_and_rol_permiso_tables.php` | 2 tablas: `permisos` y pivote `rol_permiso`. Agrega columna `reservable_en_linea` a `especialidades` (RN18). |
 | `2026_10_23_000001_add_nombre_normalizado_to_especialidades_table.php` | Agrega columna única `nombre_normalizado` a `especialidades` para prevenir duplicados fonéticos/tildes. |
 | `2026_10_23_000002_create_pagos_cita_table_and_add_pago_to_citas.php` | Crea tabla `pagos_cita` (CU-27), agrega `id_pago` y `pago_confirmado` en `citas`, y registra parámetros `HORAS_ANTICIPACION_CANCELAR = 12` y `MONTO_FIJO_RESERVA_CITA = 50.00` (D17, RN15). |
+| `2026_11_07_000001_add_partial_unique_index_to_citas_table.php` | Crea el índice único parcial `uq_citas_turno_activo` sobre `(id_medico, fecha_cita, hora_inicio)` en PostgreSQL con resolución dinámica de IDs para blindar la base de datos contra doble agendamiento concurrente (Cero Sobreventa). |
 
 ---
 
@@ -175,3 +177,20 @@ php artisan migrate --seed
 php artisan serve
 ```
 El servidor quedará disponible en `http://127.0.0.1:8000/api`.
+
+---
+
+## 6. Suite de Pruebas Automatizadas y Blindaje Local
+
+El backend cuenta con scripts de prueba automatizados en `backend/tests/`, todos protegidos mediante **guardas de seguridad de entorno** que impiden su ejecución accidental contra producción (Render / Supabase):
+
+```bash
+# 1. Ejecutar la suite integral de 21 casos de prueba funcionales y de seguridad (100% éxito)
+php backend/tests/ejecutar_20_pruebas.php
+
+# 2. Ejecutar prueba real de concurrencia con 2 procesos paralelos independientes (201 Created vs 409 Conflict)
+php backend/tests/prueba_concurrencia_procesos.php
+
+# 3. Probar migraciones y seeders con índice único en sandbox local aislado
+php backend/tests/verificar_seeders_sandbox.php
+```

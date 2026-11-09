@@ -41,6 +41,23 @@ class RegistrarAsistenciaServicio
                 throw new \Exception("Estado de cita '{$nuevoCodigoEstado}' no reconocido.", 422);
             }
 
+            // Validación de cobro de saldo antes de atención médica
+            if ($nuevoCodigoEstado === 'atendida') {
+                $precio = (float)($cita->precio_consulta ?? 100.00);
+                $pagos = DB::table('pagos_cita')
+                    ->where('id_cita', $idCita)
+                    ->where('estado_pago', 'completado')
+                    ->sum('monto');
+                $montoPagado = (float)$pagos;
+                if ($montoPagado <= 0 && (!empty($cita->id_pago) || !empty($cita->pago_confirmado))) {
+                    $montoPagado = 50.00;
+                }
+                $saldo = round(max(0, $precio - $montoPagado), 2);
+                if ($saldo > 0) {
+                    throw new \Exception('Debe cobrarse el saldo en recepción antes de marcar la cita como atendida', 422);
+                }
+            }
+
             $esCerrada = in_array($codigoActual, ['atendida', 'inasistencia'], true);
 
             // 5. Corrección Autorizada de Citas Cerradas (atendida ⇄ inasistencia)

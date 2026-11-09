@@ -26,22 +26,32 @@ class GuardarEspecialidadRequest extends FormRequestPersonalizado
 
     protected function prepareForValidation(): void
     {
+        $datosExtra = [];
+
         if ($this->has('nombre')) {
-            $this->merge([
-                'nombre_normalizado' => self::normalizar((string)$this->input('nombre')),
-            ]);
+            $datosExtra['nombre_normalizado'] = self::normalizar((string)$this->input('nombre'));
+        }
+
+        if ($this->has('precioConsulta') && !$this->has('precio_consulta')) {
+            $datosExtra['precio_consulta'] = $this->input('precioConsulta');
+        }
+
+        if (!empty($datosExtra)) {
+            $this->merge($datosExtra);
         }
     }
 
     public function rules(): array
     {
         $idEspecialidad = $this->route('id');
+        $montoGarantia = (float)(\Illuminate\Support\Facades\DB::table('parametros_sistema')->where('clave', 'MONTO_FIJO_RESERVA_CITA')->value('valor') ?: 50.00);
 
         return [
             'nombre' => 'required|string|max:80',
             'nombre_normalizado' => 'required|string|max:80|unique:especialidades,nombre_normalizado,' . ($idEspecialidad ?? 'NULL') . ',id_especialidad',
             'descripcion' => 'nullable|string|max:255',
             'duracion_turno_minutos' => 'required|integer|min:5|max:120',
+            'precio_consulta' => 'required|numeric|min:' . $montoGarantia,
             'reservable_en_linea' => 'nullable|boolean',
             'estado' => 'nullable|string|in:activo,inactivo',
         ];
@@ -49,12 +59,18 @@ class GuardarEspecialidadRequest extends FormRequestPersonalizado
 
     public function messages(): array
     {
+        $montoGarantia = (float)(\Illuminate\Support\Facades\DB::table('parametros_sistema')->where('clave', 'MONTO_FIJO_RESERVA_CITA')->value('valor') ?: 50.00);
+        $montoStr = number_format($montoGarantia, 2, '.', '');
+
         return [
             'nombre.required' => 'El nombre de la especialidad es obligatorio.',
             'nombre_normalizado.unique' => 'Ya existe una especialidad registrada con este nombre o una variación ortográfica similar (RF04).',
             'duracion_turno_minutos.required' => 'La duración del turno es obligatoria.',
             'duracion_turno_minutos.min' => 'La duración mínima de consulta es de 5 minutos.',
             'duracion_turno_minutos.max' => 'La duración máxima de consulta es de 120 minutos.',
+            'precio_consulta.required' => 'El precio de la consulta es obligatorio.',
+            'precio_consulta.numeric' => 'El precio de la consulta debe ser un número válido.',
+            'precio_consulta.min' => "El precio de la consulta debe ser mayor o igual a la garantía de reserva ({$montoStr} Bs).",
         ];
     }
 }

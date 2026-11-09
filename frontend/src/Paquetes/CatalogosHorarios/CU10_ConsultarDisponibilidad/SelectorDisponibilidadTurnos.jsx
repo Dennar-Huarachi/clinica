@@ -20,6 +20,7 @@ export default function SelectorDisponibilidadTurnos({
   onSeleccionarTurno,
   turnoSeleccionado = null,
   claveRefresco = 0,
+  resumenCobro = null,
 }) {
   const {
     turnos,
@@ -59,6 +60,24 @@ export default function SelectorDisponibilidadTurnos({
       >
         Turnos de Atención Disponibles:
       </label>
+
+      {/* Resumen de Costo y Garantía (CU-10 / CU-12) */}
+      {resumenCobro && (
+        <div
+          style={{
+            backgroundColor: '#F0FDFA',
+            border: '1px solid #99F6E4',
+            borderRadius: '8px',
+            padding: '0.75rem 1rem',
+            marginBottom: '0.85rem',
+            fontSize: '0.86rem',
+            color: '#134E4A',
+            lineHeight: 1.45,
+          }}
+        >
+          <b>Costo de la consulta: {Number(resumenCobro.precioConsulta || 100).toFixed(2)} Bs</b> · Garantía de reserva: {Number(resumenCobro.montoGarantia || 50).toFixed(2)} Bs (se paga ahora) · <b>Saldo: {Number(resumenCobro.saldoPendiente || 50).toFixed(2)} Bs</b> (se paga en la clínica el día de su consulta con efectivo, tarjeta o QR)
+        </div>
+      )}
 
       {/* 1. Estado de Carga */}
       {cargando && (

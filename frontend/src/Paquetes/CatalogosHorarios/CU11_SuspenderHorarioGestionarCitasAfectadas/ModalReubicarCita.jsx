@@ -126,6 +126,23 @@ export default function ModalReubicarCita({
                 <strong className="resumen-valor">{cita.fecha_cita} a las {cita.hora_inicio}</strong>
               </div>
             </div>
+
+            {/* Aviso Institucional de Garantía Conservada */}
+            <div style={{
+              marginTop: '0.85rem',
+              backgroundColor: '#EFF6FF',
+              border: '1px solid #BFDBFE',
+              borderRadius: '8px',
+              padding: '0.65rem 0.9rem',
+              color: '#1E40AF',
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+            }}>
+              <span style={{ fontSize: '1.1rem' }}>ℹ️</span>
+              <span><b>Garantía de reserva:</b> Su garantía se mantiene para la nueva fecha; no pierde su pago.</span>
+            </div>
           </div>
 
           {/* Filtros para el Nuevo Turno */}

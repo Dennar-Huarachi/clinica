@@ -141,6 +141,10 @@ class GestionarCitasServicio
             $montoParam = DB::table('parametros_sistema')->where('clave', 'MONTO_FIJO_RESERVA_CITA')->value('valor') ?: '50.00';
             $montoReserva = (float)$montoParam;
 
+            // Obtener precio congelado de consulta de la especialidad seleccionada
+            $espReg = DB::table('especialidades')->where('id_especialidad', $idEspecialidad)->first();
+            $precioConsultaCita = (float)($espReg?->precio_consulta ?? 100.00);
+
             // 6. Estado inicial de cita: 'pendiente' (id=1)
             $estadoPendiente = DB::table('estados_cita')->where('codigo', 'pendiente')->first();
             $idEstado = $estadoPendiente ? $estadoPendiente->id_estado_cita : 1;
@@ -152,6 +156,7 @@ class GestionarCitasServicio
                 'id_paciente' => $idPaciente,
                 'id_medico' => $idMedico,
                 'id_especialidad' => $idEspecialidad,
+                'precio_consulta' => $precioConsultaCita,
                 'id_estado_cita' => $idEstado,
                 'fecha_cita' => $fecha,
                 'hora_inicio' => $horaInicioStr,
@@ -548,6 +553,7 @@ class GestionarCitasServicio
                 'per_medico.apellidos as medico_apellidos',
                 'medicos.nro_matricula',
                 'especialidades.nombre as especialidad_nombre',
+                'citas.precio_consulta as precio_consulta',
                 'estados_cita.codigo as estado_cita_codigo',
                 'estados_cita.nombre as estado_cita_nombre',
                 'pagos_cita.monto as pago_monto',
@@ -573,6 +579,40 @@ class GestionarCitasServicio
             $query->where('estados_cita.codigo', $estado);
         }
 
-        return $query->get()->toArray();
+        return $query->get()->map(function ($c) {
+            $fila = (array)$c;
+            $precio = isset($fila['precio_consulta']) && (float)$fila['precio_consulta'] > 0
+                ? (float)$fila['precio_consulta']
+                : 100.00;
+
+            $pagos = DB::table('pagos_cita')->where('id_cita', $fila['id_cita'])->get();
+            $montoPagado = (float)$pagos->where('estado_pago', 'completado')->sum('monto');
+            $tieneReembolso = $pagos->contains('estado_pago', 'reembolsado');
+
+            if ($montoPagado <= 0 && (!empty($fila['pago_monto']) || !empty($fila['pago_confirmado']))) {
+                $montoPagado = !empty($fila['pago_monto']) ? (float)$fila['pago_monto'] : 50.00;
+            }
+
+            $saldoPendiente = round(max(0, $precio - $montoPagado), 2);
+
+            if ($tieneReembolso) {
+                $estadoCobro = 'Reembolsado';
+            } elseif ($saldoPendiente <= 0) {
+                $estadoCobro = 'Pagada completa';
+            } else {
+                $estadoCobro = 'Saldo pendiente';
+            }
+
+            $fila['precioConsulta'] = $precio;
+            $fila['precio_consulta'] = $precio;
+            $fila['montoPagado'] = $montoPagado;
+            $fila['monto_pagado'] = $montoPagado;
+            $fila['saldoPendiente'] = $saldoPendiente;
+            $fila['saldo_pendiente'] = $saldoPendiente;
+            $fila['estadoCobro'] = $estadoCobro;
+            $fila['estado_cobro'] = $estadoCobro;
+
+            return (object)$fila;
+        })->toArray();
     }
 }

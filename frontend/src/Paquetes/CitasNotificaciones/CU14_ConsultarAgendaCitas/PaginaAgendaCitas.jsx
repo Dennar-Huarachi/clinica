@@ -10,6 +10,8 @@ import TablaExpandible from '../../../comun/componentes/TablaExpandible';
 import InsigniaEstadoPago from '../CU27_GestionarPagosReembolsos/InsigniaEstadoPago';
 import VistaSemanalAgenda, { obtenerDiasSemana } from './VistaSemanalAgenda';
 import ModalReprogramarCita from '../CU12_GestionarCitas/ModalReprogramarCita';
+import ModalCobrarSaldo from '../CU27_GestionarPagosReembolsos/ModalCobrarSaldo';
+import ComprobanteDigitalTransaccion from '../CU27_GestionarPagosReembolsos/ComprobanteDigitalTransaccion';
 
 export default function PaginaAgendaCitas() {
   const [modoVista, setModoVista] = useState('diaria'); // 'diaria' | 'semanal'
@@ -38,10 +40,15 @@ export default function PaginaAgendaCitas() {
   const [motivoCorreccionRN16, setMotivoCorreccionRN16] = useState('');
   const [procesandoCorreccion, setProcesandoCorreccion] = useState(false);
 
+  // Estados para Cobro de Saldo en Recepción (CU-27 / CU-14)
+  const [citaCobrarSaldo, setCitaCobrarSaldo] = useState(null);
+  const [comprobanteSaldoExito, setComprobanteSaldoExito] = useState(null);
+
   const usuario = JSON.parse(localStorage.getItem('usuario_clinica') || '{}');
   const rol = (usuario?.rol || '').toLowerCase();
   const esMedico = rol === 'medico';
   const esAdmin = rol === 'administrador';
+  const esPersonal = ['administrador', 'recepcionista'].includes(rol);
 
   // Cargar especialidades y médicos activos
   useEffect(() => {
@@ -221,6 +228,44 @@ export default function PaginaAgendaCitas() {
     } finally {
       setProcesandoCorreccion(false);
     }
+  };
+
+  // Manejador de Cobro de Saldo Exitoso en Recepción (CU-27 / CU-14)
+  const manejarCobroSaldoExitoso = (datos) => {
+    setComprobanteSaldoExito(datos.comprobante || {
+      codigo_cita: citaCobrarSaldo?.codigo_cita,
+      nro_transaccion: datos.nro_transaccion || 'TX-SALDO-OK',
+      saldo_cobrado: datos.saldoPendiente || 50,
+      precio_consulta: datos.precioConsulta || 100,
+      paciente: `${citaCobrarSaldo?.paciente_apellidos || ''}, ${citaCobrarSaldo?.paciente_nombres || ''}`,
+      medico: `Dr(a). ${citaCobrarSaldo?.medico_apellidos || ''}`,
+      especialidad: citaCobrarSaldo?.especialidad_nombre,
+    });
+
+    setAlerta({
+      tipo: 'exito',
+      mensaje: `¡Saldo de la cita ${citaCobrarSaldo?.codigo_cita} cobrado exitosamente! La cita ahora está pagada completa.`,
+    });
+
+    if (citaCobrarSaldo) {
+      setCitas((prev) =>
+        prev.map((item) =>
+          item.id_cita === citaCobrarSaldo.id_cita
+            ? {
+                ...item,
+                saldoPendiente: 0,
+                saldo_pendiente: 0,
+                montoPagado: item.precioConsulta || item.precio_consulta || 100,
+                monto_pagado: item.precioConsulta || item.precio_consulta || 100,
+                estadoCobro: 'Pagada completa',
+                estado_cobro: 'Pagada completa',
+              }
+            : item
+        )
+      );
+    }
+
+    cargarAgenda();
   };
 
   const opcionesEspecialidades = especialidades.map((esp) => ({
@@ -460,131 +505,211 @@ export default function PaginaAgendaCitas() {
               cargando={cargando}
               mensajeVacio={`No se registran citas para los filtros seleccionados (${fecha}).`}
               obtenerClaveFila={(c) => c.id_cita}
-              renderFilaPrincipal={(c, isExpanded, toggleExpand) => (
-                <>
-                  <td style={{ fontWeight: 700, color: 'var(--verde-azulado)' }}>
-                    {c.hora_inicio} - {c.hora_fin}
-                  </td>
-                  <td>
-                    <span className="badge-codigo-turquesa">{c.codigo_cita}</span>
-                  </td>
-                  <td>
-                    <strong>{c.paciente_apellidos}, {c.paciente_nombres}</strong>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--texto-sec)' }}>
-                      CI: {c.paciente_ci || 'S/N'} | Hist: {c.codigo_historia}
-                    </div>
-                  </td>
-                  <td>
-                    <div>{c.especialidad_nombre}</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--texto-sec)' }}>
-                      Dr. {c.medico_apellidos}
-                    </div>
-                  </td>
-                  <td style={{ fontSize: '0.85rem' }}>
-                    {c.motivo_consulta || 'Consulta general'}
-                  </td>
-                  <td>
-                    <InsigniaEstado estado={c.estado_codigo} texto={c.estado_nombre} />
-                  </td>
-                  <td onClick={(e) => e.stopPropagation()}>
-                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      {c.estado_codigo === 'pendiente' && (
-                        <button
-                          type="button"
-                          onClick={() => confirmarCita(c.id_cita)}
-                          className="boton-secundario"
-                          style={{ minHeight: '34px', padding: '0 0.6rem', fontSize: '0.8rem' }}
-                          title="Confirmar Cita"
-                        >
-                          Confirmar
-                        </button>
-                      )}
+              renderFilaPrincipal={(c, isExpanded, toggleExpand) => {
+                const hoyStr = new Date().toISOString().split('T')[0];
+                const esDeHoy = c.fecha_cita === hoyStr;
+                const precioConsulta = Number(c.precioConsulta ?? c.precio_consulta ?? 100);
+                const montoPagado = Number(c.montoPagado ?? c.monto_pagado ?? c.pago_monto ?? 50);
+                const saldoPendiente = Number(c.saldoPendiente ?? c.saldo_pendiente ?? Math.max(0, precioConsulta - montoPagado));
+                const tieneSaldoPendiente = saldoPendiente > 0;
+                const estadoCobro = c.estadoCobro || c.estado_cobro || (tieneSaldoPendiente ? 'Saldo pendiente' : 'Pagada completa');
+                const esProgramadaOConfirmada = ['pendiente', 'programada', 'confirmada'].includes(c.estado_codigo);
+                const puedeCobrarSaldo = esPersonal && esDeHoy && esProgramadaOConfirmada && tieneSaldoPendiente;
 
-                      {['pendiente', 'confirmada'].includes(c.estado_codigo) && (
-                        <button
-                          type="button"
-                          onClick={() => marcarAsistencia(c.id_cita, 'en_espera')}
-                          className="boton-primario"
-                          style={{ minHeight: '34px', padding: '0 0.6rem', fontSize: '0.8rem' }}
-                          title="Registrar presencia en sala de espera"
-                        >
-                          Presente
-                        </button>
-                      )}
-
-                      {['pendiente', 'confirmada'].includes(c.estado_codigo) && !esMedico && (
-                        <button
-                          type="button"
-                          onClick={() => abrirModalReprogramar(c)}
-                          className="boton-terciario"
-                          style={{ minHeight: '34px', padding: '0 0.6rem', fontSize: '0.8rem' }}
-                          title="Reprogramar fecha u hora de la cita"
-                        >
-                          Reprogramar
-                        </button>
-                      )}
-
-                      {esMedico && ['en_espera', 'confirmada', 'pendiente'].includes(c.estado_codigo) && (
-                        <Link
-                          to={`/historia-clinica/atencion/${c.id_cita}`}
-                          className="boton-primario"
-                          style={{ minHeight: '34px', padding: '0 0.6rem', fontSize: '0.8rem', backgroundColor: '#F28C1E' }}
-                        >
-                          Atender
-                        </Link>
-                      )}
-                    </div>
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <button
-                      type="button"
-                      className={`boton-chevron-expandir ${isExpanded ? 'rotado' : ''}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleExpand();
-                      }}
-                      aria-label="Ver detalles y acciones"
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                      </svg>
-                    </button>
-                  </td>
-                </>
-              )}
-              renderFilaMovil={(c, isExpanded, toggleExpand) => (
-                <div className="fila-resumen-movil">
-                  <div className="fila-resumen-movil-linea1">
-                    <div style={{ fontWeight: 700, color: '#0A6C84', fontSize: '0.95rem' }}>
+                return (
+                  <>
+                    <td style={{ fontWeight: 700, color: 'var(--verde-azulado)' }}>
                       {c.hora_inicio} - {c.hora_fin}
+                    </td>
+                    <td>
+                      <span className="badge-codigo-turquesa">{c.codigo_cita}</span>
+                    </td>
+                    <td>
+                      <strong>{c.paciente_apellidos}, {c.paciente_nombres}</strong>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--texto-sec)' }}>
+                        CI: {c.paciente_ci || 'S/N'} | Hist: {c.codigo_historia}
+                      </div>
+                    </td>
+                    <td>
+                      <div>{c.especialidad_nombre}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--texto-sec)' }}>
+                        Dr. {c.medico_apellidos}
+                      </div>
+                    </td>
+                    <td style={{ fontSize: '0.85rem' }}>
+                      {c.motivo_consulta || 'Consulta general'}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <InsigniaEstado estado={c.estado_codigo} texto={c.estado_nombre} />
+                        <InsigniaEstadoPago
+                          estadoCobro={estadoCobro}
+                          estado={c.estado_pago}
+                          saldoPendiente={saldoPendiente}
+                          compacto={true}
+                        />
+                      </div>
+                    </td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        {/* Botón principal (naranja) Cobrar Saldo para citas de HOY con saldo pendiente */}
+                        {puedeCobrarSaldo && (
+                          <button
+                            type="button"
+                            onClick={() => setCitaCobrarSaldo(c)}
+                            className="boton-primario"
+                            style={{
+                              minHeight: '34px',
+                              padding: '0 0.65rem',
+                              fontSize: '0.8rem',
+                              fontWeight: 700,
+                              backgroundColor: 'var(--naranja)',
+                              borderColor: 'var(--naranja-oscuro)',
+                            }}
+                            title="Cobrar saldo pendiente en recepción"
+                          >
+                            💵 Cobrar saldo
+                          </button>
+                        )}
+
+                        {c.estado_codigo === 'pendiente' && (
+                          <button
+                            type="button"
+                            onClick={() => confirmarCita(c.id_cita)}
+                            className="boton-secundario"
+                            style={{ minHeight: '34px', padding: '0 0.6rem', fontSize: '0.8rem' }}
+                            title="Confirmar Cita"
+                          >
+                            Confirmar
+                          </button>
+                        )}
+
+                        {['pendiente', 'confirmada'].includes(c.estado_codigo) && (
+                          <button
+                            type="button"
+                            onClick={() => marcarAsistencia(c.id_cita, 'en_espera')}
+                            className="boton-primario"
+                            style={{ minHeight: '34px', padding: '0 0.6rem', fontSize: '0.8rem' }}
+                            title="Registrar presencia en sala de espera"
+                          >
+                            Presente
+                          </button>
+                        )}
+
+                        {['pendiente', 'confirmada'].includes(c.estado_codigo) && !esMedico && (
+                          <button
+                            type="button"
+                            onClick={() => abrirModalReprogramar(c)}
+                            className="boton-terciario"
+                            style={{ minHeight: '34px', padding: '0 0.6rem', fontSize: '0.8rem' }}
+                            title="Reprogramar fecha u hora de la cita"
+                          >
+                            Reprogramar
+                          </button>
+                        )}
+
+                        {/* Flujo Médico: solo lectura, sin botones de pago; deshabilita si hay saldo pendiente */}
+                        {esMedico && ['en_espera', 'confirmada', 'pendiente'].includes(c.estado_codigo) && (
+                          tieneSaldoPendiente ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <button
+                                type="button"
+                                disabled
+                                className="boton-terciario"
+                                style={{
+                                  minHeight: '34px',
+                                  padding: '0 0.6rem',
+                                  fontSize: '0.8rem',
+                                  opacity: 0.6,
+                                  cursor: 'not-allowed',
+                                }}
+                                title="Debe cobrarse el saldo en recepción antes de marcar la cita como atendida"
+                              >
+                                🩺 Atender
+                              </button>
+                              <span style={{ fontSize: '0.7rem', color: '#9C6E00', fontWeight: 600 }}>
+                                ⚠️ Saldo pendiente
+                              </span>
+                            </div>
+                          ) : (
+                            <Link
+                              to={`/historia-clinica/atencion/${c.id_cita}`}
+                              className="boton-primario"
+                              style={{ minHeight: '34px', padding: '0 0.6rem', fontSize: '0.8rem', backgroundColor: '#F28C1E' }}
+                            >
+                              Atender
+                            </Link>
+                          )
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        className={`boton-chevron-expandir ${isExpanded ? 'rotado' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleExpand();
+                        }}
+                        aria-label="Ver detalles y acciones"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                      </button>
+                    </td>
+                  </>
+                );
+              }}
+              renderFilaMovil={(c, isExpanded, toggleExpand) => {
+                const precioConsulta = Number(c.precioConsulta ?? c.precio_consulta ?? 100);
+                const montoPagado = Number(c.montoPagado ?? c.monto_pagado ?? c.pago_monto ?? 50);
+                const saldoPendiente = Number(c.saldoPendiente ?? c.saldo_pendiente ?? Math.max(0, precioConsulta - montoPagado));
+                const tieneSaldoPendiente = saldoPendiente > 0;
+                const estadoCobro = c.estadoCobro || c.estado_cobro || (tieneSaldoPendiente ? 'Saldo pendiente' : 'Pagada completa');
+
+                return (
+                  <div className="fila-resumen-movil">
+                    <div className="fila-resumen-movil-linea1">
+                      <div style={{ fontWeight: 700, color: '#0A6C84', fontSize: '0.95rem' }}>
+                        {c.hora_inicio} - {c.hora_fin}
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <InsigniaEstadoPago
+                          estadoCobro={estadoCobro}
+                          estado={c.estado_pago}
+                          saldoPendiente={saldoPendiente}
+                          compacto={true}
+                        />
+                        <InsigniaEstado estado={c.estado_codigo} texto={c.estado_nombre} />
+                      </div>
                     </div>
-                    <InsigniaEstado estado={c.estado_codigo} texto={c.estado_nombre} />
-                  </div>
-                  <div className="fila-resumen-movil-linea2">
-                    <div className="fila-resumen-movil-nombre">
-                      <span className="nombre-paciente-destacado">
-                        {c.paciente_apellidos}, {c.paciente_nombres}
-                      </span>
-                      <span className="ci-paciente-sub">
-                        {c.especialidad_nombre} • Dr. {c.medico_apellidos}
-                      </span>
+                    <div className="fila-resumen-movil-linea2">
+                      <div className="fila-resumen-movil-nombre">
+                        <span className="nombre-paciente-destacado">
+                          {c.paciente_apellidos}, {c.paciente_nombres}
+                        </span>
+                        <span className="ci-paciente-sub">
+                          {c.especialidad_nombre} • Dr. {c.medico_apellidos}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className={`boton-chevron-expandir ${isExpanded ? 'rotado' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleExpand();
+                        }}
+                        aria-label="Expandir opciones"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      className={`boton-chevron-expandir ${isExpanded ? 'rotado' : ''}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleExpand();
-                      }}
-                      aria-label="Expandir opciones"
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                      </svg>
-                    </button>
                   </div>
-                </div>
-              )}
+                );
+              }}
               renderDetalle={(c) => (
                 <div>
                   <div className="panel-detalle-grid">
@@ -619,16 +744,46 @@ export default function PaginaAgendaCitas() {
                       </span>
                     </div>
                     <div className="detalle-dato-item">
-                      <span className="detalle-etiqueta">Garantía de Reserva</span>
-                      <span className="detalle-valor" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <InsigniaEstadoPago estado={c.estado_pago} monto={c.pago_monto || '50.00'} />
-                        {c.nro_transaccion && (
-                          <span style={{ fontSize: '0.8rem', color: '#64748B', fontFamily: 'monospace' }}>
-                            (Tx: {c.nro_transaccion})
-                          </span>
-                        )}
-                      </span>
+                      <span className="detalle-etiqueta">Estado de Cobro y Garantía</span>
+                      <div className="detalle-valor" style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <InsigniaEstadoPago
+                            estado={c.estado_cobro || (c.saldo_pendiente > 0 ? 'Saldo pendiente' : 'Pagada completa')}
+                            monto={c.pago_monto || c.monto_pagado || '50.00'}
+                          />
+                          {c.nro_transaccion && (
+                            <span style={{ fontSize: '0.8rem', color: '#64748B', fontFamily: 'monospace' }}>
+                              (Tx: {c.nro_transaccion})
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.84rem', color: '#475569', backgroundColor: '#F8FAFC', padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                          <span>Costo consulta: <b>{Number(c.precio_consulta || 100).toFixed(2)} Bs</b></span>
+                          <span style={{ margin: '0 0.4rem' }}>·</span>
+                          <span>Garantía pagada: <b>{Number(c.monto_pagado || 50).toFixed(2)} Bs</b></span>
+                          <span style={{ margin: '0 0.4rem' }}>·</span>
+                          <span>Saldo pendiente: <b style={{ color: Number(c.saldo_pendiente || 0) > 0 ? '#D97706' : '#16A34A' }}>{Number(c.saldo_pendiente || 0).toFixed(2)} Bs</b></span>
+                        </div>
+                      </div>
                     </div>
+                    {c.estado_codigo === 'postergada' && (
+                      <div className="detalle-dato-item" style={{ gridColumn: '1 / -1' }}>
+                        <div style={{
+                          backgroundColor: '#EFF6FF',
+                          border: '1px solid #BFDBFE',
+                          borderRadius: '8px',
+                          padding: '0.65rem 0.9rem',
+                          color: '#1E40AF',
+                          fontSize: '0.88rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem'
+                        }}>
+                          <span>ℹ️</span>
+                          <span><b>Cita postergada:</b> Su garantía se mantiene para la nueva fecha; no pierde su pago.</span>
+                        </div>
+                      </div>
+                    )}
                     <div className="detalle-dato-item">
                       <span className="detalle-etiqueta">Observaciones / Historial</span>
                       <span className="detalle-valor">
@@ -639,6 +794,37 @@ export default function PaginaAgendaCitas() {
 
                   {/* Botonera de acciones apilada en móvil (min-height: 44px) */}
                   <div className="panel-detalle-acciones">
+                    {/* Botón principal naranja para cobro de saldo en recepción (solo HOY, Programada/Confirmada, saldo > 0, Recepcionista/Admin) */}
+                    {(() => {
+                      const hoyStr = new Date().toISOString().split('T')[0];
+                      const esDeHoy = c.fecha_cita === hoyStr;
+                      const precioConsulta = Number(c.precioConsulta ?? c.precio_consulta ?? 100);
+                      const montoPagado = Number(c.montoPagado ?? c.monto_pagado ?? c.pago_monto ?? 50);
+                      const saldoPendiente = Number(c.saldoPendiente ?? c.saldo_pendiente ?? Math.max(0, precioConsulta - montoPagado));
+                      const tieneSaldoPendiente = saldoPendiente > 0;
+                      const esProgramadaOConfirmada = ['pendiente', 'programada', 'confirmada'].includes(c.estado_codigo);
+                      const puedeCobrarSaldoDetalle = esPersonal && esDeHoy && esProgramadaOConfirmada && tieneSaldoPendiente;
+
+                      if (!puedeCobrarSaldoDetalle) return null;
+
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setCitaCobrarSaldo(c)}
+                          className="boton-primario"
+                          style={{
+                            backgroundColor: '#F28C1E',
+                            borderColor: '#F28C1E',
+                            color: '#FFFFFF',
+                            fontWeight: 700,
+                            minHeight: '44px',
+                          }}
+                        >
+                          💳 Cobrar Saldo ({Number(saldoPendiente).toFixed(2)} Bs)
+                        </button>
+                      );
+                    })()}
+
                     {c.estado_codigo === 'pendiente' && (
                       <button
                         type="button"
@@ -774,6 +960,20 @@ export default function PaginaAgendaCitas() {
               <p style={{ fontSize: '0.88rem', color: 'var(--texto-sec)', marginBottom: '1rem' }}>
                 Cita: <b>{citaCancelar.codigo_cita}</b> | Paciente: <b>{citaCancelar.paciente_apellidos}, {citaCancelar.paciente_nombres}</b>
               </p>
+
+              {citaCancelar.estado_codigo === 'postergada' && (
+                <div style={{
+                  backgroundColor: '#EFF6FF',
+                  border: '1px solid #BFDBFE',
+                  borderRadius: '8px',
+                  padding: '0.65rem 0.85rem',
+                  fontSize: '0.84rem',
+                  color: '#1E40AF',
+                  marginBottom: '1rem'
+                }}>
+                  ℹ️ <b>Cita previamente postergada:</b> En caso de cancelación de una cita postergada, se le devuelve la totalidad de la garantía (50.00 Bs) sin penalidad de 12 horas.
+                </div>
+              )}
 
               <form onSubmit={ejecutarCancelacion}>
                 <div style={{ marginBottom: '1.25rem' }}>
@@ -926,6 +1126,23 @@ export default function PaginaAgendaCitas() {
           onConfirmar={ejecutarReprogramacion}
           guardando={procesandoReprogramacion}
         />
+
+        {/* Modal para cobrar saldo en recepción (CU-14 / CU-27) */}
+        <ModalCobrarSaldo
+          abierto={Boolean(citaCobrarSaldo)}
+          cita={citaCobrarSaldo}
+          onCerrar={() => setCitaCobrarSaldo(null)}
+          onExito={manejarCobroSaldoExitoso}
+        />
+
+        {/* Modal de Comprobante Digital tras cobrar el saldo */}
+        {comprobanteSaldo && (
+          <ComprobanteDigitalTransaccion
+            abierto={Boolean(comprobanteSaldo)}
+            onCerrar={() => setComprobanteSaldo(null)}
+            datosComprobante={comprobanteSaldo}
+          />
+        )}
       </div>
     </LayoutPrincipal>
   );

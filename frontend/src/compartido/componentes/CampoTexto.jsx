@@ -12,8 +12,11 @@ export default function CampoTexto({
   requerido = false,
   deshabilitado = false,
   filas = null,
+  placeholder,
+  ...resto
 }) {
   const identificador = id || nombre;
+  const textoMarcador = placeholder || marcador;
 
   return (
     <div className="grupo-campo">
@@ -29,10 +32,11 @@ export default function CampoTexto({
           name={nombre}
           value={valor ?? ''}
           onChange={alCambiar}
-          placeholder={marcador}
+          placeholder={textoMarcador}
           disabled={deshabilitado}
           rows={filas}
           className={`textarea-campo ${error ? 'error' : ''}`}
+          {...resto}
         />
       ) : (
         <input
@@ -41,9 +45,10 @@ export default function CampoTexto({
           type={tipo}
           value={valor ?? ''}
           onChange={alCambiar}
-          placeholder={marcador}
+          placeholder={textoMarcador}
           disabled={deshabilitado}
           className={`input-campo ${error ? 'error' : ''}`}
+          {...resto}
         />
       )}
 

@@ -81,3 +81,27 @@ El catálogo preliminar contemplaba estados básicos (`programada`, `cancelada`,
   - Se generan códigos de autorización ficticios (`TX-...`).
   - **No existe integración con pasarelas bancarias reales** (como Red Enlace, Libélula, Stripe o PayPal) ni almacenamiento de números reales de tarjetas de crédito o CVV, en resguardo del cumplimiento PCI-DSS.
   - La simulación reproduce de manera fidedigna la experiencia de usuario (UX) y el flujo de estados asíncronos requerido por las reglas de negocio de la clínica.
+
+---
+
+### 2.6 Índice Único Parcial Seguro (`uq_citas_turno_activo`) y Regla Unificada de Ocupación
+- **Motivación:**
+  Originalmente, el control de no-solapamiento descansaba exclusivamente en la transacción a nivel de aplicación con `lockForUpdate()`. Para garantizar integridad absoluta a nivel de motor contra carreras críticas en entornos desacoplados o APIs externas, se agregó la migración `2026_11_07_000001_add_partial_unique_index_to_citas_table.php`.
+- **Definición del Índice en PostgreSQL:**
+  ```sql
+  CREATE UNIQUE INDEX IF NOT EXISTS uq_citas_turno_activo 
+  ON citas (id_medico, fecha_cita, hora_inicio) 
+  WHERE estado != 'cancelada' 
+    AND es_postergada = false 
+    AND id_estado_cita NOT IN (6, 9);
+  ```
+- **Unificación de Criterio:**
+  Tanto `Cita::ESTADOS_OCUPANTES` como `Cita::aplicarFiltroOcupantes()`, `Cita::querySolapamiento()` y el índice de base de datos comparten exactamente la misma regla matemática: un turno solo está liberado si la cita tiene `estado = 'cancelada'` o `es_postergada = true` / `id_estado_cita = 9`.
+
+---
+
+### 2.7 Resiliencia y UX en la Cuadrícula de Turnos del Frontend
+- **Visualización Limpia de Slots:** Los botones de turnos muestran únicamente la hora de inicio (ej. `14:00`), eliminando la sobrecarga visual de la hora de fin.
+- **Filtrado Estricto de Turnos Ocupados:** Los intervalos que colisionan con citas activas son completamente excluidos del renderizado en lugar de mostrarse deshabilitados.
+- **Deselección Reactiva Segura (`useDisponibilidadTurnos.js`):** Si un turno seleccionado deja de estar disponible tras un refresco o si la lista llega vacía, el hook deselecciona el turno de forma reactiva únicamente cuando ha concluido la carga (`!cargando`), evitando desmarques transitorios.
+- **Componente Desacoplado `ModalReprogramarCita.jsx`:** Modularizado para permitir la reprogramación de turnos tanto desde la agenda operativa como desde la gestión de citas con soporte inmediato ante respuestas 409 Conflict.

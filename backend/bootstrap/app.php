@@ -22,6 +22,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // Cabeceras HTTP de Seguridad globales (OWASP Top 10)
         $middleware->append(\App\Http\Middleware\CabecerasSeguridad::class);
 
+        $middleware->validateCsrfTokens(except: [
+            'acceso/*',
+            'api/*',
+        ]);
+
         $middleware->alias([
             'sesion.clinica' => \App\Nucleo\Sesion\ManejadorSesion::class,
             'rol' => \App\Nucleo\Permisos\MiddlewareVerificarRol::class,
@@ -29,12 +34,12 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
+            fn (Request $request) => $request->is('api/*') || $request->is('acceso/*') || $request->expectsJson(),
         );
 
         // Manejo Seguro de Errores (Anti Information Disclosure)
         $exceptions->render(function (\Throwable $e, Request $request) {
-            if ($request->is('api/*') || $request->expectsJson()) {
+            if ($request->is('api/*') || $request->is('acceso/*') || $request->expectsJson()) {
                 if ($e instanceof ValidationException) {
                     return response()->json([
                         'exito' => false,

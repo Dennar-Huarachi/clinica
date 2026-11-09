@@ -46,7 +46,7 @@ La plataforma web de la **Clínica "Vida Salud"** automatiza la gestión integra
 ### Stack Tecnológico Completo
 * **Backend:** PHP 8.3+ / Laravel 13 (REST API, Arquitectura limpia por Paquetes, FormRequests con sanitización recursiva `strip_tags()`, Manejador Global de Excepciones JSON, Rate Limiting granular `throttle:5,1`, `throttle:10,1`, `throttle:60,1`).
 * **Frontend:** React 19 / Vite / React Router v7 / CSS Modular Nativo (Variables CSS en `:root`, diseño Mobile-First estricto, sin desbordamiento horizontal gracias a `TablaExpandible.jsx`, interceptores Axios para token Bearer y normalización de errores HTTP 400/401/403/409/422).
-* **Persistencia:** PostgreSQL 18 (Local en Laragon) y PostgreSQL 16 (Producción en Supabase) con 23 tablas normalizadas, integridad referencial con claves foráneas, índices de unicidad sobre `(id_medico, fecha_cita, hora_inicio)` y transacciones ACID.
+* **Persistencia:** PostgreSQL 18 (Local en Laragon) y PostgreSQL 16 (Producción en Supabase) con 23 tablas normalizadas, integridad referencial con claves foráneas, índice único parcial `uq_citas_turno_activo` para prevención a nivel de motor de sobreventa concurrente sobre `(id_medico, fecha_cita, hora_inicio)` y transacciones ACID.
 * **Seguridad (OWASP Top 10):** Middleware de cabeceras HTTP seguras (`CabecerasSeguridad.php`), blindaje anti-IDOR con validación de identidad a partir de token Bearer en sesión (RN19), sanitización de cadenas y protección CORS restringido a orígenes autorizados.
 
 ### Matriz de Roles y Privilegios del Sistema
@@ -123,7 +123,7 @@ La plataforma web de la **Clínica "Vida Salud"** automatiza la gestión integra
 | `horarios_atencion` | `id_horario`, `id_medico`, `id_especialidad`, `dia_semana`, `hora_inicio`, `hora_fin`, `duracion_intervalo_minutos`, `estado`, `timestamps` |
 | `bloqueos_clinica` | `id_bloqueo`, `titulo`, `motivo`, `fecha_inicio`, `fecha_fin`, `aplica_a_todos`, `id_medico`, `estado`, `timestamps` |
 | `suspensiones_horario` | `id_suspension`, `id_medico`, `fecha_inicio`, `fecha_fin`, `motivo`, `estado_citas_accion`, `timestamps` |
-| `estados_cita` | `id_estado_cita`, `codigo`, `nombre`, `descripcion`, `timestamps` (8 estados: `pendiente`, `confirmada`, `en_espera`, `atendida`, `cancelada`, `inasistencia`, `reprogramada`, `postergada`) |
+| `estados_cita` | `id_estado_cita`, `codigo`, `nombre`, `descripcion`, `timestamps` (9 estados: `pendiente`, `programada`, `confirmada`, `en_espera`, `atendida`, `cancelada`, `inasistencia`, `reprogramada`, `postergada`) |
 | `citas` | `id_cita`, `codigo_cita`, `id_paciente`, `id_medico`, `id_especialidad`, `id_estado_cita`, `fecha_cita`, `hora_inicio`, `hora_fin`, `motivo_consulta`, `observaciones`, `es_postergada`, `fecha_expiracion_reserva`, `creado_por_usuario`, `id_pago`, `pago_confirmado`, `estado`, `timestamps` |
 | `pagos_cita` | `id_pago`, `id_cita`, `monto`, `metodo_pago`, `nro_transaccion`, `estado_pago` (`completado`, `reembolsado`, `retenido`), `detalles_pasarela`, `fecha_pago`, `fecha_reembolso`, `timestamps` |
 | `notificaciones` | `id_notificacion`, `id_usuario`, `tipo`, `titulo`, `mensaje`, `leido`, `fecha_leido`, `metadata`, `timestamps` |

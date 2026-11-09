@@ -294,6 +294,22 @@ export default function PaginaSuspensiones() {
                       <span className="detalle-etiqueta">Observaciones y Causa:</span>
                       <p className="detalle-parrafo">{item.observaciones || 'Afectada por contingencia horaria.'}</p>
                     </div>
+                    <div className="detalle-ancho-completo" style={{ marginTop: '0.4rem' }}>
+                      <div style={{
+                        backgroundColor: '#FAF5FF',
+                        border: '1px solid #E9D5FF',
+                        borderRadius: '6px',
+                        padding: '0.5rem 0.8rem',
+                        color: '#6B21A8',
+                        fontSize: '0.84rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                      }}>
+                        <span>ℹ️</span>
+                        <span><b>Garantía de reserva:</b> Su garantía se mantiene para la nueva fecha; no pierde su pago.</span>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="acciones-detalle-postergada">

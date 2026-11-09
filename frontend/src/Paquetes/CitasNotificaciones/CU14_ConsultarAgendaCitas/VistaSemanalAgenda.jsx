@@ -396,16 +396,41 @@ export default function VistaSemanalAgenda({
               </div>
 
               <div className="detalle-dato-item">
-                <span className="detalle-etiqueta">Garantía / Pago</span>
-                <span className="detalle-valor" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <InsigniaEstadoPago estado={citaDetalle.estado_pago} monto={citaDetalle.pago_monto || '50.00'} />
-                  {citaDetalle.nro_transaccion && (
-                    <span style={{ fontSize: '0.8rem', color: '#64748B', fontFamily: 'monospace' }}>
-                      (Tx: {citaDetalle.nro_transaccion})
-                    </span>
-                  )}
-                </span>
+                <span className="detalle-etiqueta">Estado de Cobro y Saldo</span>
+                <div className="detalle-valor" style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <InsigniaEstadoPago
+                      estado={citaDetalle.estado_cobro || (Number(citaDetalle.saldo_pendiente || 0) > 0 ? 'Saldo pendiente' : 'Pagada completa')}
+                      monto={citaDetalle.pago_monto || citaDetalle.monto_pagado || '50.00'}
+                    />
+                    {citaDetalle.nro_transaccion && (
+                      <span style={{ fontSize: '0.8rem', color: '#64748B', fontFamily: 'monospace' }}>
+                        (Tx: {citaDetalle.nro_transaccion})
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#475569', backgroundColor: '#F8FAFC', padding: '0.35rem 0.5rem', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                    <span>Costo: <b>{Number(citaDetalle.precio_consulta || 100).toFixed(2)} Bs</b></span> · 
+                    <span> Pagado: <b>{Number(citaDetalle.monto_pagado || 50).toFixed(2)} Bs</b></span> · 
+                    <span> Saldo: <b style={{ color: Number(citaDetalle.saldo_pendiente || 0) > 0 ? '#D97706' : '#16A34A' }}>{Number(citaDetalle.saldo_pendiente || 0).toFixed(2)} Bs</b></span>
+                  </div>
+                </div>
               </div>
+
+              {citaDetalle.estado_codigo === 'postergada' && (
+                <div className="detalle-dato-item" style={{ gridColumn: '1 / -1' }}>
+                  <div style={{
+                    backgroundColor: '#EFF6FF',
+                    border: '1px solid #BFDBFE',
+                    borderRadius: '8px',
+                    padding: '0.65rem 0.9rem',
+                    color: '#1E40AF',
+                    fontSize: '0.85rem'
+                  }}>
+                    ℹ️ <b>Cita postergada:</b> Su garantía se mantiene para la nueva fecha; no pierde su pago.
+                  </div>
+                </div>
+              )}
 
               <div className="detalle-dato-item" style={{ gridColumn: '1 / -1' }}>
                 <span className="detalle-etiqueta">Observaciones</span>

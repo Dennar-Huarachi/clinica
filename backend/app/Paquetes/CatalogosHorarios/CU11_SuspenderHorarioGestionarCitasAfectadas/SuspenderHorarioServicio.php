@@ -93,6 +93,36 @@ class SuspenderHorarioServicio
                         'updated_at' => now(),
                     ]);
 
+                    // Si la cita tenía un cobro de saldo pagado, reembolsarlo automáticamente por contingencia (CU-11 / CU-27)
+                    $pagoSaldo = DB::table('pagos_cita')
+                        ->where('id_cita', $cita->id_cita)
+                        ->where('tipo_pago', 'saldo')
+                        ->whereIn('estado_pago', ['completado', 'pagado'])
+                        ->first();
+
+                    if ($pagoSaldo) {
+                        DB::table('pagos_cita')->where('id_pago', $pagoSaldo->id_pago)->update([
+                            'estado_pago' => 'reembolsado',
+                            'fecha_reembolso' => now(),
+                            'updated_at' => now(),
+                        ]);
+
+                        ServicioBitacora::registrar(
+                            'CU11_SuspenderHorarioGestionarCitasAfectadas',
+                            'REEMBOLSO_SALDO_POSTERGACION',
+                            'pagos_cita',
+                            (string)$pagoSaldo->id_pago,
+                            ['estado_pago' => $pagoSaldo->estado_pago],
+                            [
+                                'id_cita' => $cita->id_cita,
+                                'codigo_cita' => $cita->codigo_cita,
+                                'monto' => (float)$pagoSaldo->monto,
+                                'motivo' => "Reembolso automático del saldo pagado por postergación médica: {$datos['motivo']}",
+                            ],
+                            $idUsuarioOperador
+                        );
+                    }
+
                     // Determinar si el paciente tiene cuenta de usuario para notificación en línea
                     $usuarioPaciente = DB::table('usuarios')
                         ->where('id_persona', $cita->id_persona_paciente)

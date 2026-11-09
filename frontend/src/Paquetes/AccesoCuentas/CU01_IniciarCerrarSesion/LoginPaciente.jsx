@@ -324,7 +324,15 @@ export default function LoginPaciente() {
       {/* Modal Interactivo de Recuperación de Contraseña */}
       <ModalRecuperarPassword
         abierto={modalRecuperarAbierto}
-        alCerrar={() => setModalRecuperarAbierto(false)}
+        alCerrar={(datos) => {
+          setModalRecuperarAbierto(false);
+          if (datos?.identificador) {
+            setIdentificador(datos.identificador);
+          }
+          setTimeout(() => {
+            document.getElementById('identificador')?.focus();
+          }, 100);
+        }}
         tipo="paciente"
       />
 

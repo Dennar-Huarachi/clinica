@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 // Paquete 1: Acceso y Cuentas
 use App\Http\Controllers\Paquetes\AccesoCuentas\CU01_IniciarCerrarSesion\IniciarCerrarSesionControlador;
 use App\Http\Controllers\Paquetes\AccesoCuentas\CU02_CambiarContrasena\CambiarContrasenaControlador;
+use App\Http\Controllers\Paquetes\AccesoCuentas\CU02_CambiarContrasena\RecuperarContrasenaControlador;
 use App\Http\Controllers\Paquetes\AccesoCuentas\CU03_RegistrarsePaciente\RegistrarsePacienteControlador;
 use App\Http\Controllers\Paquetes\AccesoCuentas\CU04_AdministrarUsuariosRoles\AdministrarUsuariosRolesControlador;
 use App\Http\Controllers\Paquetes\AccesoCuentas\CU26_GenerarRestaurarCopiasSeguridad\GenerarRestaurarCopiasSeguridadControlador;
@@ -68,6 +69,11 @@ Route::get('/salud', function () {
 Route::post('/acceso/login', [IniciarCerrarSesionControlador::class, 'login'])->middleware('throttle:5,1');
 Route::post('/acceso/registro-paciente', [RegistrarsePacienteControlador::class, 'registrar'])->middleware('throttle:10,1');
 
+// CU02 Recuperación de contraseña por correo
+Route::post('/acceso/recuperacion/solicitar', [RecuperarContrasenaControlador::class, 'solicitar'])->middleware('throttle:10,1');
+Route::post('/acceso/recuperacion/verificar', [RecuperarContrasenaControlador::class, 'verificar'])->middleware('throttle:10,1');
+Route::post('/acceso/recuperacion/restablecer', [RecuperarContrasenaControlador::class, 'restablecer'])->middleware('throttle:10,1');
+
 // Catálogos públicos de especialidades y médicos para reserva
 Route::get('/catalogos/especialidades-publicas', [GestionarEspecialidadesControlador::class, 'index']);
 Route::get('/catalogos/medicos-publicos', [GestionarMedicosControlador::class, 'index']);
@@ -107,6 +113,8 @@ Route::middleware(['sesion.clinica'])->group(function () {
     // CU27: Gestionar Pagos y Reembolsos de Garantía (Transaccionales protegidas con throttle:60,1)
     Route::post('/pagos/garantia', [GestionarPagosReembolsosControlador::class, 'procesarPago'])->middleware('throttle:60,1');
     Route::post('/pagos/{id_cita}/reembolso', [GestionarPagosReembolsosControlador::class, 'procesarReembolso'])->middleware('throttle:60,1');
+    Route::post('/pagos/{id_cita}/saldo', [GestionarPagosReembolsosControlador::class, 'procesarCobroSaldo'])
+        ->middleware(['rol:administrador,recepcionista', 'throttle:60,1']);
     Route::get('/pagos/cita/{id_cita}', [GestionarPagosReembolsosControlador::class, 'consultarPorCita']);
 
     Route::get('/notificaciones', [EnviarNotificacionesControlador::class, 'index']);

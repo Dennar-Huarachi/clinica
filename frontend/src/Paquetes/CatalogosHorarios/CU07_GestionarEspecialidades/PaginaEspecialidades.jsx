@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../../compartido/utilidades/api';
+import { MONTO_GARANTIA_RESERVA } from '../../../compartido/utilidades/constantesFinancieras';
 import CampoTexto from '../../../compartido/componentes/CampoTexto';
 import InsigniaEstado from '../../../compartido/componentes/InsigniaEstado';
 import Alerta from '../../../compartido/componentes/Alerta';
@@ -24,6 +25,7 @@ export default function PaginaEspecialidades() {
     nombre: '',
     descripcion: '',
     duracion_turno_minutos: 15,
+    precio_consulta: 100,
     reservable_en_linea: true,
   });
   const [errores, setErrores] = useState({});
@@ -46,6 +48,7 @@ export default function PaginaEspecialidades() {
       nombre: '',
       descripcion: '',
       duracion_turno_minutos: 15,
+      precio_consulta: 100,
       reservable_en_linea: true,
     });
     setErrores({});
@@ -58,6 +61,7 @@ export default function PaginaEspecialidades() {
       nombre: esp.nombre,
       descripcion: esp.descripcion || '',
       duracion_turno_minutos: esp.duracion_turno_minutos || 15,
+      precio_consulta: esp.precio_consulta ?? esp.precioConsulta ?? 100,
       reservable_en_linea: esp.reservable_en_linea ?? true,
     });
     setErrores({});
@@ -68,12 +72,33 @@ export default function PaginaEspecialidades() {
     e.preventDefault();
     setErrores({});
 
+    // Validación de precio de consulta (CU-07: numérico, 2 decimales, obligatorio, >= garantía institucional)
+    const errs = {};
+    if (formulario.precio_consulta === '' || formulario.precio_consulta === null || formulario.precio_consulta === undefined) {
+      errs.precio_consulta = 'El precio de la consulta es obligatorio.';
+    } else if (isNaN(formulario.precio_consulta)) {
+      errs.precio_consulta = 'El precio de la consulta debe ser un número válido.';
+    } else if (Number(formulario.precio_consulta) < MONTO_GARANTIA_RESERVA) {
+      errs.precio_consulta = `El precio de la consulta debe ser mayor o igual a la garantía de reserva (${MONTO_GARANTIA_RESERVA.toFixed(2)} Bs).`;
+    }
+
+    if (Object.keys(errs).length > 0) {
+      setErrores(errs);
+      return;
+    }
+
+    const payload = {
+      ...formulario,
+      precio_consulta: Number(formulario.precio_consulta),
+      precioConsulta: Number(formulario.precio_consulta),
+    };
+
     try {
       if (espEditando) {
-        await api.put(`/catalogos/especialidades/${espEditando.id_especialidad}`, formulario);
+        await api.put(`/catalogos/especialidades/${espEditando.id_especialidad}`, payload);
         setAlerta({ tipo: 'exito', mensaje: 'Especialidad médica actualizada satisfactoriamente.' });
       } else {
-        await api.post('/catalogos/especialidades', formulario);
+        await api.post('/catalogos/especialidades', payload);
         setAlerta({ tipo: 'exito', mensaje: 'Especialidad creada con éxito.' });
       }
       setModalAbierto(false);
@@ -143,7 +168,7 @@ export default function PaginaEspecialidades() {
 
         {/* Listado con Acordeón Mobile-First (TablaExpandible) */}
         <TablaExpandible
-          columnas={['Especialidad Médica', 'Canal de Reserva', 'Duración Consulta', 'Estado', '']}
+          columnas={['Especialidad Médica', 'Precio Consulta', 'Canal de Reserva', 'Duración Consulta', 'Estado', '']}
           datos={especialidades}
           cargando={cargando}
           obtenerClaveFila={(esp) => esp.id_especialidad}
@@ -158,6 +183,22 @@ export default function PaginaEspecialidades() {
                     {esp.descripcion}
                   </div>
                 )}
+              </td>
+              <td>
+                <span style={{
+                  backgroundColor: '#DEF7EC',
+                  color: '#03543F',
+                  border: '1px solid #BCF0DA',
+                  borderRadius: '12px',
+                  padding: '3px 10px',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  {Number(esp.precio_consulta || esp.precioConsulta || 100).toFixed(2)} Bs
+                </span>
               </td>
               <td>
                 {esp.reservable_en_linea !== false ? (
@@ -231,6 +272,20 @@ export default function PaginaEspecialidades() {
               {/* Línea 2 (Abajo): Canal de reserva, Badge de Estado y botón chevron a la derecha */}
               <div className="fila-resumen-movil-linea2">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{
+                    backgroundColor: '#DEF7EC',
+                    color: '#03543F',
+                    border: '1px solid #BCF0DA',
+                    borderRadius: '12px',
+                    padding: '2px 8px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '3px'
+                  }}>
+                    {Number(esp.precio_consulta || esp.precioConsulta || 100).toFixed(2)} Bs
+                  </span>
                   {esp.reservable_en_linea !== false ? (
                     <span style={{
                       backgroundColor: '#E6F9F0',
@@ -286,6 +341,13 @@ export default function PaginaEspecialidades() {
           renderDetalle={(esp) => (
             <>
               <div className="panel-detalle-grid">
+                <div className="detalle-dato-item">
+                  <span className="detalle-etiqueta">Precio de la Consulta Médica</span>
+                  <span className="detalle-valor" style={{ color: '#03543F', fontWeight: 800, fontSize: '0.95rem' }}>
+                    {Number(esp.precio_consulta || esp.precioConsulta || 100).toFixed(2)} Bs (Garantía: {MONTO_GARANTIA_RESERVA.toFixed(2)} Bs / Saldo en clínica: {Math.max(0, Number(esp.precio_consulta || esp.precioConsulta || 100) - MONTO_GARANTIA_RESERVA).toFixed(2)} Bs)
+                  </span>
+                </div>
+
                 <div className="detalle-dato-item">
                   <span className="detalle-etiqueta">Duración Estándar de Consulta</span>
                   <span className="detalle-valor" style={{ color: '#0A6C84', fontWeight: 700 }}>
@@ -383,6 +445,19 @@ export default function PaginaEspecialidades() {
                   alCambiar={(e) => setFormulario({ ...formulario, duracion_turno_minutos: Number(e.target.value) })}
                   error={errores.duracion_turno_minutos?.[0] || errores.duracion_turno_minutos}
                   placeholder="15"
+                  requerido
+                />
+
+                <CampoTexto
+                  etiqueta="Precio de la Consulta (Bs)"
+                  nombre="precio_consulta"
+                  tipo="number"
+                  step="0.01"
+                  min={String(MONTO_GARANTIA_RESERVA)}
+                  valor={formulario.precio_consulta}
+                  alCambiar={(e) => setFormulario({ ...formulario, precio_consulta: e.target.value })}
+                  error={errores.precio_consulta?.[0] || errores.precio_consulta || errores.precioConsulta?.[0] || errores.precioConsulta}
+                  placeholder="100.00"
                   requerido
                 />
 

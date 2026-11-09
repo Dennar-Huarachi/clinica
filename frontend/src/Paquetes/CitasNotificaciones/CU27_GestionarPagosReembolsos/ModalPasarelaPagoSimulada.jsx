@@ -103,6 +103,11 @@ export default function ModalPasarelaPagoSimulada({
             {detalleTurno.medico && (
               <div><b>Médico:</b> Dr. {detalleTurno.medico}</div>
             )}
+            {detalleTurno.precioConsulta && (
+              <div style={{ marginTop: '0.4rem', paddingTop: '0.4rem', borderTop: '1px solid #CBD5E1', fontSize: '0.8rem', color: '#0A6C84' }}>
+                <b>Costo de la consulta:</b> {Number(detalleTurno.precioConsulta).toFixed(2)} Bs · <b>Garantía ahora:</b> {Number(monto).toFixed(2)} Bs · <b>Saldo en clínica:</b> {Math.max(0, Number(detalleTurno.precioConsulta) - Number(monto)).toFixed(2)} Bs
+              </div>
+            )}
           </div>
         )}
 

@@ -21,9 +21,9 @@
 | | CU09 Horarios de Atención | `GestionarHorariosAtencionControlador` / `GestionarHorariosAtencionServicio` | `PaginaHorarios.jsx`, `ModalHorario.jsx` | Auditado y Verificado (100%) |
 | | CU10 Consultar Disponibilidad | `ConsultarDisponibilidadControlador` / `ConsultarDisponibilidadServicio` | `SelectorDisponibilidadTurnos.jsx`, `useDisponibilidadTurnos.js` | Auditado y Verificado (100%) |
 | | CU11 Suspender Horario y Citas | `SuspenderHorarioControlador` / `SuspenderHorarioServicio` | `PaginaSuspensiones.jsx`, `ModalNuevaSuspension.jsx`, `ModalReubicarCita.jsx` | Auditado y Verificado (100%) |
-| **CitasNotificaciones** | CU12 Gestionar Citas | `GestionarCitasControlador` / `GestionarCitasServicio` | `PaginaReservaCitas.jsx` | Auditado y Verificado (100%) |
+| **CitasNotificaciones** | CU12 Gestionar Citas | `GestionarCitasControlador` / `GestionarCitasServicio` | `PaginaReservaCitas.jsx`, `ModalReprogramarCita.jsx` | Auditado y Verificado (100%) |
 | | CU13 Asistencia / Inasistencia | `RegistrarAsistenciaControlador` / `RegistrarAsistenciaServicio` | Integrado en `PaginaAgendaCitas.jsx` | Auditado y Verificado (100%) |
-| | CU14 Agenda de Citas | `ConsultarAgendaCitasControlador` / `ConsultarAgendaCitasServicio` | `PaginaAgendaCitas.jsx`, `VistaSemanalAgenda.jsx` | Auditado y Verificado (100%) |
+| | CU14 Agenda de Citas | `ConsultarAgendaCitasControlador` / `ConsultarAgendaCitasServicio` | `PaginaAgendaCitas.jsx`, `VistaSemanalAgenda.jsx`, `ModalReprogramarCita.jsx` | Auditado y Verificado (100%) |
 | | CU15 Historial y Seguimiento | `HistorialSeguimientoCitasControlador` / `HistorialSeguimientoCitasServicio` | `PaginaHistorialCitas.jsx` | Auditado y Verificado (100%) |
 | | CU16 Notificaciones | `EnviarNotificacionesControlador` / `EnviarNotificacionesServicio` | `CampanaNotificaciones.jsx` | Auditado y Verificado (100%) |
 | | CU27 Pagos y Garantía | `GestionarPagosReembolsosControlador` / `GestionarPagosReembolsosServicio` | `ModalPasarelaPagoSimulada.jsx`, `ComprobanteDigitalTransaccion.jsx` | Auditado y Verificado (100%) |
@@ -40,7 +40,8 @@
 ---
 
 ## 2. Resumen de Ejecución de Pruebas
-- **Pruebas Funcionales y de Seguridad:** 20/20 aprobadas.
-- **Prueba de Concurrencia y Condición de Carrera:** 1/1 aprobada (bloqueo pesimista `lockForUpdate` previene doble reserva, rechazando con 409).
-- **Compilación de Frontend (Vite/Linux):** Compilado limpio en 647ms con 0 errores.
+- **Pruebas Funcionales y de Seguridad:** 21/21 aprobadas con éxito (100%).
+- **Prueba de Concurrencia y Condición de Carrera Multiproceso:** 1/1 aprobada (2 procesos independientes paralelos: 201 Created vs 409 Conflict, cero sobreventa).
+- **Prueba de Idempotencia de Seeders e Índice Único en Sandbox:** Superada al 100% (47 citas sin colisiones).
+- **Compilación de Frontend (Vite/Linux):** Compilado limpio en 738ms con 0 errores.
 - **Informe Definitivo:** Generado en `docs/informe-auditoria.md`.

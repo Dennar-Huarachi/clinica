@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../../compartido/utilidades/api';
+import { MONTO_GARANTIA_RESERVA } from '../../../compartido/utilidades/constantesFinancieras';
 import CampoTexto from '../../../compartido/componentes/CampoTexto';
 import SelectorBuscador from '../../../compartido/componentes/SelectorBuscador';
 import Alerta from '../../../compartido/componentes/Alerta';
@@ -34,6 +35,12 @@ export default function PaginaReservaCitas() {
   const navigate = useNavigate();
   const usuario = JSON.parse(localStorage.getItem('usuario_clinica') || '{}');
   const esPersonal = ['administrador', 'recepcionista'].includes((usuario?.rol || '').toLowerCase());
+
+  const espSeleccionada = especialidades.find((e) => Number(e.id_especialidad) === Number(idEspecialidad));
+  const precioConsulta = espSeleccionada ? Number(espSeleccionada.precio_consulta || espSeleccionada.precioConsulta || 100) : 100;
+  const montoGarantia = MONTO_GARANTIA_RESERVA;
+  const saldoPendiente = Math.max(0, precioConsulta - montoGarantia);
+  const resumenCobro = espSeleccionada ? { precioConsulta, montoGarantia, saldoPendiente } : null;
 
   // Cargar especialidades y pacientes
   useEffect(() => {
@@ -178,9 +185,11 @@ export default function PaginaReservaCitas() {
         codigo_cita: datosCita.codigo_cita,
         nro_transaccion: datosCita.nro_transaccion,
         monto: datosCita.monto_reserva || 50.00,
+        precio_consulta: precioConsulta,
+        saldo_pendiente: saldoPendiente,
         fecha: fecha,
         hora: horaInicioLimpia,
-        especialidad: especialidades.find((e) => Number(e.id_especialidad) === Number(idEspecialidad))?.nombre,
+        especialidad: espSeleccionada?.nombre,
         medico: medicos.find((m) => Number(m.id_medico) === Number(idMedico))?.apellidos,
         metodo_pago: metodoPagoValido === 'qr_transferencia' ? 'Simple QR Interoperable' : 'Tarjeta de Débito/Crédito',
       });
@@ -329,6 +338,24 @@ export default function PaginaReservaCitas() {
               />
             </div>
 
+            {/* Resumen de Costo de Consulta y Garantía (CU-10 / CU-12) */}
+            {espSeleccionada && (
+              <div
+                style={{
+                  backgroundColor: '#F0FDFA',
+                  border: '1px solid #99F6E4',
+                  borderRadius: '10px',
+                  padding: '0.85rem 1rem',
+                  margin: '0.75rem 0 1rem 0',
+                  fontSize: '0.88rem',
+                  color: '#134E4A',
+                  lineHeight: 1.45,
+                }}
+              >
+                <b>Costo de la consulta: {precioConsulta.toFixed(2)} Bs</b> · Garantía de reserva: {montoGarantia.toFixed(2)} Bs (se paga ahora) · <b>Saldo: {saldoPendiente.toFixed(2)} Bs</b> (se paga en la clínica el día de su consulta con efectivo, tarjeta o QR)
+              </div>
+            )}
+
             <CampoTexto
               etiqueta="Fecha de la Consulta"
               nombre="fecha_cita"
@@ -350,6 +377,7 @@ export default function PaginaReservaCitas() {
               onSeleccionarTurno={(turno) => setTurnoSeleccionado(turno)}
               turnoSeleccionado={turnoSeleccionado}
               claveRefresco={claveRefrescoTurnos}
+              resumenCobro={resumenCobro}
             />
 
             <CampoTexto

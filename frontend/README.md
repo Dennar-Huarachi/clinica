@@ -57,11 +57,16 @@ frontend/src/
 │   │   │   ├── ModalHorario.jsx (Configurador interactivo de franjas y turnos)
 │   │   │   └── PaginaHorarios.jsx (Grilla semanal de atención médica)
 │   │   ├── CU10_ConsultarDisponibilidad/
-│   │   │   └── SelectorDisponibilidadTurnos.jsx (Selector dinámico de turnos libres)
+│   │   │   ├── SelectorDisponibilidadTurnos.jsx (Selector dinámico de turnos libres con formato limpio de hora de inicio)
+│   │   │   └── useDisponibilidadTurnos.js (Hook personalizado con polling inteligente y deselección reactiva segura)
 │   │   └── CU11_SuspenderHorarioGestionarCitasAfectadas/
+│   │       ├── PaginaSuspensiones.jsx (Gestión de contingencias y monitoreo de citas postergadas)
+│   │       ├── ModalNuevaSuspension.jsx (Formulario de suspensión de horario con validación de fechas)
+│   │       └── ModalReubicarCita.jsx (Modal de reubicación con prioridad de 48h, manejo de 409 y grilla limpia)
 │   ├── CitasNotificaciones/
 │   │   ├── CU12_GestionarCitas/
-│   │   │   └── PaginaReservaCitas.jsx (Flujo de reserva y reprogramación de consultas)
+│   │   │   ├── PaginaReservaCitas.jsx (Flujo de reserva y pago de garantía con manejo robusto de errores 409, 401, 422 y 500)
+│   │   │   └── ModalReprogramarCita.jsx (Modal modular de reprogramación de turnos con validación de concurrencia)
 │   │   ├── CU13_RegistrarAsistenciaInasistenciaAtencion/
 │   │   ├── CU14_ConsultarAgendaCitas/
 │   │   │   └── PaginaAgendaCitas.jsx (Agenda médica operativa con control de asistencia)

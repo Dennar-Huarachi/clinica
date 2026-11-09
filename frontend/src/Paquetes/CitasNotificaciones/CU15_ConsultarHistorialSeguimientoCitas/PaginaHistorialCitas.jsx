@@ -255,9 +255,17 @@ export default function PaginaHistorialCitas() {
                 </td>
                 <td>
                   <InsigniaEstado estado={c.estado_codigo} texto={c.estado_nombre} />
+                  {c.estado_codigo === 'postergada' && (
+                    <div style={{ fontSize: '0.75rem', color: '#7E22CE', marginTop: '0.2rem', fontWeight: 600 }}>
+                      ℹ️ Garantía conservada
+                    </div>
+                  )}
                 </td>
                 <td>
-                  <InsigniaEstadoPago estado={c.estado_pago} monto={c.pago_monto || '50.00'} />
+                  <InsigniaEstadoPago
+                    estado={c.estado_cobro || c.estado_pago || (Number(c.saldo_pendiente || 0) > 0 ? 'Saldo pendiente' : 'Pagada completa')}
+                    monto={c.monto_pagado || c.pago_monto || '50.00'}
+                  />
                 </td>
                 <td onClick={(e) => e.stopPropagation()}>
                   <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
@@ -272,7 +280,7 @@ export default function PaginaHistorialCitas() {
                       </button>
                     )}
 
-                    {['pendiente', 'confirmada'].includes(c.estado_codigo) && (
+                    {['pendiente', 'confirmada', 'postergada'].includes(c.estado_codigo) && (
                       <button
                         type="button"
                         onClick={() => abrirModalCancelar(c)}
@@ -306,10 +314,19 @@ export default function PaginaHistorialCitas() {
                 <div className="fila-resumen-movil-linea1">
                   <span className="badge-codigo-turquesa">{c.codigo_cita}</span>
                   <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-                    <InsigniaEstadoPago estado={c.estado_pago} monto={c.pago_monto || '50'} compacto={true} />
+                    <InsigniaEstadoPago
+                      estado={c.estado_cobro || c.estado_pago || (Number(c.saldo_pendiente || 0) > 0 ? 'Saldo pendiente' : 'Pagada completa')}
+                      monto={c.monto_pagado || c.pago_monto || '50'}
+                      compacto={true}
+                    />
                     <InsigniaEstado estado={c.estado_codigo} texto={c.estado_nombre} />
                   </div>
                 </div>
+                {c.estado_codigo === 'postergada' && (
+                  <div style={{ fontSize: '0.78rem', color: '#7E22CE', fontWeight: 600, padding: '0.1rem 0' }}>
+                    ℹ️ Su garantía se mantiene para la nueva fecha; no pierde su pago.
+                  </div>
+                )}
                 <div className="fila-resumen-movil-linea2">
                   <div className="fila-resumen-movil-nombre">
                     <span className="nombre-paciente-destacado">
@@ -364,17 +381,58 @@ export default function PaginaHistorialCitas() {
                       </span>
                     </div>
                   )}
-                  <div className="detalle-dato-item">
-                    <span className="detalle-etiqueta">Garantía de Reserva</span>
-                    <span className="detalle-valor" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <InsigniaEstadoPago estado={c.estado_pago} monto={c.pago_monto || '50.00'} />
-                      {c.nro_transaccion && (
-                        <span style={{ fontSize: '0.8rem', color: '#64748B', fontFamily: 'monospace' }}>
-                          (Tx: {c.nro_transaccion})
+                  {/* Desglose Financiero de Consulta y Saldo */}
+                  <div className="detalle-dato-item" style={{ gridColumn: '1 / -1' }}>
+                    <div style={{
+                      backgroundColor: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '10px',
+                      padding: '0.85rem 1rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.45rem',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1E293B' }}>
+                          Desglose de Pago de la Consulta
                         </span>
+                        <InsigniaEstadoPago
+                          estado={c.estado_cobro || c.estado_pago || (Number(c.saldo_pendiente || 0) > 0 ? 'Saldo pendiente' : 'Pagada completa')}
+                          monto={c.monto_pagado || c.pago_monto || '50.00'}
+                        />
+                      </div>
+                      <div style={{ fontSize: '0.88rem', color: '#334155', lineHeight: '1.5' }}>
+                        Costo de la consulta: <b>{Number(c.precio_consulta || 100).toFixed(2)} Bs</b> · Garantía pagada: <b>{Number(c.monto_pagado || 50).toFixed(2)} Bs</b> · Saldo a pagar en la clínica: <b style={{ color: Number(c.saldo_pendiente || 0) > 0 ? '#D97706' : '#16A34A' }}>{Number(c.saldo_pendiente || 0).toFixed(2)} Bs</b>
+                      </div>
+                      <div style={{ fontSize: '0.82rem', color: '#0A6C84', fontWeight: 500, backgroundColor: '#E0F2FE', padding: '0.4rem 0.65rem', borderRadius: '6px' }}>
+                        ℹ️ El saldo se paga en recepción el día de su consulta con efectivo, tarjeta o QR.
+                      </div>
+                      {c.nro_transaccion && (
+                        <div style={{ fontSize: '0.78rem', color: '#64748B', fontFamily: 'monospace' }}>
+                          Comprobante garantía: {c.nro_transaccion}
+                        </div>
                       )}
-                    </span>
+                    </div>
                   </div>
+
+                  {c.estado_codigo === 'postergada' && (
+                    <div className="detalle-dato-item" style={{ gridColumn: '1 / -1' }}>
+                      <div style={{
+                        backgroundColor: '#FAF5FF',
+                        border: '1px solid #E9D5FF',
+                        borderRadius: '8px',
+                        padding: '0.75rem 1rem',
+                        color: '#6B21A8',
+                        fontSize: '0.88rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}>
+                        <span style={{ fontSize: '1.1rem' }}>ℹ️</span>
+                        <span><b>Cita postergada:</b> Su garantía se mantiene para la nueva fecha; no pierde su pago.</span>
+                      </div>
+                    </div>
+                  )}
                   <div className="detalle-dato-item">
                     <span className="detalle-etiqueta">Motivo de Consulta</span>
                     <span className="detalle-valor">
@@ -400,7 +458,7 @@ export default function PaginaHistorialCitas() {
                     </button>
                   )}
 
-                  {['pendiente', 'confirmada'].includes(c.estado_codigo) && (
+                  {['pendiente', 'confirmada', 'postergada'].includes(c.estado_codigo) && (
                     <button
                       type="button"
                       onClick={() => abrirModalCancelar(c)}
@@ -417,8 +475,9 @@ export default function PaginaHistorialCitas() {
 
         {/* Modal Accesible de Cancelación para Paciente con Evaluación de 12 Horas */}
         {citaACancelar && (() => {
+          const esPostergada = citaACancelar.estado_codigo === 'postergada';
           const horasRestantes = calcularHorasRestantes(citaACancelar);
-          const permiteCancelacionWeb = horasRestantes >= 12;
+          const permiteCancelacionWeb = esPostergada || horasRestantes >= 12;
 
           return (
             <div className="modal-backdrop" style={{
@@ -447,8 +506,24 @@ export default function PaginaHistorialCitas() {
                   Cita: <b>{citaACancelar.codigo_cita}</b> ({citaACancelar.fecha_cita} a las {citaACancelar.hora_inicio})
                 </p>
 
-                {/* Banner de Evaluación de Política de 12 Horas */}
-                {permiteCancelacionWeb ? (
+                {/* Banner de Evaluación de Política de 12 Horas o Excepción por Postergación */}
+                {esPostergada ? (
+                  <div style={{
+                    backgroundColor: '#FAF5FF',
+                    border: '1px solid #D8B4FE',
+                    borderRadius: '8px',
+                    padding: '0.9rem',
+                    marginBottom: '1.25rem',
+                    color: '#6B21A8',
+                    fontSize: '0.88rem',
+                    lineHeight: '1.45',
+                  }}>
+                    <div style={{ fontWeight: 700, marginBottom: '0.2rem' }}>
+                      ✓ Cita Previamente Postergada: Reembolso Completo
+                    </div>
+                    Al tratarse de una cita reprogramada o postergada por la clínica, se le devuelve la totalidad de la garantía (<b>{citaACancelar.monto_pagado || citaACancelar.pago_monto || '50.00'} Bs</b>) sin penalidad de 12 horas.
+                  </div>
+                ) : permiteCancelacionWeb ? (
                   <div style={{
                     backgroundColor: '#F0FDF4',
                     border: '1px solid #BBF7D0',

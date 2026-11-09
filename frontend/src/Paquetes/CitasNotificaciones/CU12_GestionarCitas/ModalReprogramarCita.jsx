@@ -113,6 +113,9 @@ export default function ModalReprogramarCita({
         <div style={{ background: '#F8FAFC', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.88rem' }}>
           <div><strong>Médico:</strong> Dr(a). {cita.medico_apellidos || cita.medico} ({cita.especialidad_nombre || cita.especialidad})</div>
           <div><strong>Turno actual:</strong> {cita.fecha_cita} a las {cita.hora_inicio}</div>
+          <div style={{ marginTop: '0.4rem', color: '#0A6C84', fontWeight: 500, fontSize: '0.82rem' }}>
+            ℹ️ Su garantía se mantiene para la nueva fecha; no pierde su pago.
+          </div>
         </div>
 
         <form onSubmit={handleSubmit}>

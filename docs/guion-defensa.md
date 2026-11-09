@@ -73,7 +73,7 @@ flowchart LR
 3. **Registro de Paciente en Ventanilla (CU-05):**
    - Mostrar cómo recepción empadrona pacientes sin cuenta web previa, generando su número de historia clínica correlativo (`HC-00xx`).
 4. **Reprogramación de Turno (CU-12):**
-   - Localizar una cita activa, reprogramarla a una nueva fecha/hora y verificar que el turno original queda inmediatamente libre para agendamiento.
+   - Localizar una cita activa, abrir el modal de reprogramación (`ModalReprogramarCita.jsx`), seleccionar un nuevo cupo libre en la grilla y verificar que el turno original queda inmediatamente libre para agendamiento, auditándose en el sistema.
 5. **Recepción en Sala de Espera (CU-13):**
    - Pasar la cita de un paciente que llega a la clínica de estado `Programada` a `En Sala de Espera` (ID 4).
 
@@ -117,7 +117,9 @@ flowchart LR
 ## 3. Banco de 15 Preguntas Probables de la Docente y Respuestas Técnicas
 
 ### 1. ¿Cómo manejan la concurrencia cuando dos pacientes quieren reservar el mismo turno al mismo milisegundo?
-**Respuesta:** Mediante transacciones atómicas `DB::transaction()` y bloqueo pesimista a nivel de fila con `lockForUpdate()` en PostgreSQL (`Cita::querySolapamiento()`). La primera solicitud en ser atendida por el motor adquiere el candado exclusivo de lectura/escritura; la segunda solicitud espera la resolución de la primera y, al comprobar que el turno ya fue ocupado, arroja una excepción con código **HTTP 409 Conflict**, devolviendo un mensaje comprensible al paciente sin corromper la agenda.
+**Respuesta:** Mediante una estrategia de **doble blindaje en profundidad**:
+1. **A nivel de aplicación:** Transacciones atómicas `DB::transaction()` con bloqueo pesimista de fila `lockForUpdate()` en PostgreSQL (`Cita::querySolapamiento()`). La primera solicitud en ser atendida por el motor adquiere el candado exclusivo de lectura/escritura; la segunda solicitud espera la resolución de la primera y, al comprobar que el turno ya fue ocupado, arroja una excepción con código **HTTP 409 Conflict**, devolviendo un mensaje claro al paciente sin corromper la agenda.
+2. **A nivel de persistencia:** Un **índice único parcial** en PostgreSQL (`uq_citas_turno_activo`) sobre `(id_medico, fecha_cita, hora_inicio)` para citas que ocupan turno (`estado != 'cancelada' AND es_postergada = false AND id_estado_cita NOT IN (6, 9)`). Este índice actúa como garantía física en el motor de base de datos, haciendo físicamente imposible la sobreventa (*double-booking*) incluso ante procesos paralelos desacoplados.
 
 ### 2. ¿Cómo se protegen las contraseñas en la base de datos?
 **Respuesta:** Las contraseñas nunca se guardan en texto plano. Se procesan mediante la función criptográfica `Hash::make()` de Laravel, que implementa el algoritmo **Bcrypt** con un factor de costo (*work factor*) de 12 y *salt* aleatorio por cada usuario. Las comparaciones se ejecutan de manera segura con `Hash::check()`, inmune a ataques de tiempo (*timing attacks*).
@@ -129,7 +131,9 @@ flowchart LR
 **Respuesta:** Contamos con 9 estados catalogados: `pendiente`, `programada`, `confirmada`, `en_espera`, `atendida`, `cancelada`, `inasistencia`, `reprogramada` y `postergada`. La regla **RN16** en `RegistrarAsistenciaServicio` y `GestionarCitasServicio` valida que si una cita tiene estado `cancelada` (ID 6), se aborta cualquier intento de marcarla como asistida o atenderla, obligando a generar una nueva cita para no falsear las estadísticas históricas.
 
 ### 5. ¿Cómo funciona la regla de cancelación y reembolso de garantía (RN15)?
-**Respuesta:** El parámetro configurable del sistema `HORAS_ANTICIPACION_CANCELAR` (fijado en 12 horas) se evalúa comparando la fecha y hora del turno contra la hora actual en zona horaria boliviana (`America/La_Paz`). Si la diferencia es $\ge 12$ horas, el depósito de garantía en `pagos_cita` pasa a estado `reembolsado` y el turno se libera. Si es menor a 12 horas, la garantía se marca como `retenida` por penalización de inasistencia/tardanza.
+**Respuesta:** El parámetro configurable del sistema `HORAS_ANTICIPACION_CANCELAR` (fijado en 12 horas en base de datos) se evalúa comparando la fecha y hora del turno contra la hora actual en Bolivia (`America/La_Paz`):
+- **Si faltan $\ge 12$ horas:** El paciente puede cancelar desde su portal web; el turno se libera de inmediato y el depósito de garantía de 50 Bs en `pagos_cita` pasa automáticamente a estado `reembolsado` (CU-27), auditándose en la bitácora (`REEMBOLSO_RESERVA_RN15`).
+- **Si faltan $< 12$ horas:** El portal web del paciente **bloquea la cancelación arrojando HTTP 422** (*"Las cancelaciones con derecho a reembolso deben realizarse con al menos 12 horas de anticipación. Para asistencia personalizada comuníquese con recepción"*), protegiendo la agenda médica. Si el paciente acude a recepción o se comunica por ventanilla, el personal autorizado puede registrar la cancelación administrativa, en cuyo caso la garantía se marca como `retenida` aplicando la penalización económica por tardanza o inasistencia (RN15).
 
 ### 6. ¿Qué ocurre cuando un médico sufre una contingencia y suspende su horario (RN17)?
 **Respuesta:** En `SuspenderHorarioServicio` (CU-11), al registrar la suspensión médica se buscan las citas afectadas dentro del intervalo. Estas citas pasan automáticamente a estado `postergada` (ID 9), se activa la bandera `es_postergada = true` y se les asigna una fecha de expiración de reserva de **48 horas**. Durante ese lapso, el paciente tiene prioridad exclusiva para reubicar su turno sin costo adicional, y el horario suspendido queda bloqueado para nuevos agendamientos.

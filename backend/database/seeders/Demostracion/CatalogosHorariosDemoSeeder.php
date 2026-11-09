@@ -24,54 +24,62 @@ class CatalogosHorariosDemoSeeder extends Seeder
 
     public function run(): void
     {
-        // 1. Especialidades requeridas (8 especialidades, sin IDs fijos)
+        // 1. Especialidades requeridas (8 especialidades, sin IDs fijos con precio razonable)
         $especialidades = [
             [
                 'nombre' => 'Medicina General',
                 'descripcion' => 'Atención primaria ambulatoria y medicina preventiva integral.',
                 'duracion_turno_minutos' => 15,
+                'precio_consulta' => 100.00,
                 'reservable_en_linea' => true,
             ],
             [
                 'nombre' => 'Pediatría',
                 'descripcion' => 'Cuidado integral de la salud en la infancia y adolescencia.',
                 'duracion_turno_minutos' => 15,
+                'precio_consulta' => 120.00,
                 'reservable_en_linea' => true,
             ],
             [
                 'nombre' => 'Geriatría',
                 'descripcion' => 'Atención médica integral especializada en adultos mayores.',
                 'duracion_turno_minutos' => 20,
+                'precio_consulta' => 130.00,
                 'reservable_en_linea' => true,
             ],
             [
                 'nombre' => 'Ginecología',
                 'descripcion' => 'Salud reproductiva femenina, obstetricia y control ginecológico.',
                 'duracion_turno_minutos' => 30,
+                'precio_consulta' => 150.00,
                 'reservable_en_linea' => true,
             ],
             [
                 'nombre' => 'Odontología',
                 'descripcion' => 'Salud bucal, odontología preventiva y restauradora.',
                 'duracion_turno_minutos' => 30,
+                'precio_consulta' => 120.00,
                 'reservable_en_linea' => true,
             ],
             [
                 'nombre' => 'Cardiología',
                 'descripcion' => 'Diagnóstico, tratamiento y seguimiento de patologías cardiovasculares.',
                 'duracion_turno_minutos' => 30,
+                'precio_consulta' => 200.00,
                 'reservable_en_linea' => true,
             ],
             [
                 'nombre' => 'Endocrinología',
                 'descripcion' => 'Trastornos hormonales, metabolismo y diabetes (Atención Exclusiva Presencial).',
                 'duracion_turno_minutos' => 30,
+                'precio_consulta' => 100.00,
                 'reservable_en_linea' => false,
             ],
             [
                 'nombre' => 'Fisioterapia',
                 'descripcion' => 'Rehabilitación física, neuromuscular y terapia motora (Atención Exclusiva Presencial).',
                 'duracion_turno_minutos' => 30,
+                'precio_consulta' => 100.00,
                 'reservable_en_linea' => false,
             ],
         ];
@@ -91,6 +99,7 @@ class CatalogosHorariosDemoSeeder extends Seeder
                     'nombre_normalizado' => $nombreNorm,
                     'descripcion' => $esp['descripcion'],
                     'duracion_turno_minutos' => $esp['duracion_turno_minutos'],
+                    'precio_consulta' => $esp['precio_consulta'],
                     'reservable_en_linea' => $esp['reservable_en_linea'],
                     'estado' => 'activo',
                     'updated_at' => now(),
@@ -102,6 +111,7 @@ class CatalogosHorariosDemoSeeder extends Seeder
                     'nombre_normalizado' => $nombreNorm,
                     'descripcion' => $esp['descripcion'],
                     'duracion_turno_minutos' => $esp['duracion_turno_minutos'],
+                    'precio_consulta' => $esp['precio_consulta'],
                     'reservable_en_linea' => $esp['reservable_en_linea'],
                     'estado' => 'activo',
                     'created_at' => now(),

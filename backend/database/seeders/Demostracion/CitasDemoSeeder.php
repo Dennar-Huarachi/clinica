@@ -193,6 +193,36 @@ class CitasDemoSeeder extends Seeder
             // Próximo Sábado (M3 Geri, M6 Fisio)
             ['codigo' => 'CM-0046', 'pac' => 9, 'med' => 3, 'esp' => $esp['Geriatria'], 'fecha' => $proxSab->toDateString(), 'ini' => '08:00:00', 'fin' => '08:20:00', 'est' => $estados['confirmada'], 'motivo' => 'Evaluación integral geriátrica semestral'],
             ['codigo' => 'CM-0047', 'pac' => 17, 'med' => 6, 'esp' => $esp['Fisioterapia'], 'fecha' => $proxSab->toDateString(), 'ini' => '08:00:00', 'fin' => '08:30:00', 'est' => $estados['cancelada'], 'motivo' => 'Tratamiento de túnel carpiano', 'obs' => 'Cancelada por el personal médico.'],
+
+            // ==========================================
+            // CITAS DE HOY (Demostración de Cobro de Saldo en Recepción)
+            // ==========================================
+            // Cita 1 de HOY: Estado Confirmada, Garantía pagada, SALDO PENDIENTE
+            [
+                'codigo' => 'CM-0048',
+                'pac' => 19,
+                'med' => 1,
+                'esp' => $esp['Med Gral'],
+                'fecha' => $hoy->toDateString(),
+                'ini' => '10:00:00',
+                'fin' => '10:15:00',
+                'est' => $estados['confirmada'],
+                'motivo' => 'Control de glucemia y evaluación médica matutina',
+                'con_saldo_pagado' => false,
+            ],
+            // Cita 2 de HOY: Estado Confirmada, Garantía pagada, SALDO YA PAGADO EN EFECTIVO
+            [
+                'codigo' => 'CM-0049',
+                'pac' => 20,
+                'med' => 1,
+                'esp' => $esp['Med Gral'],
+                'fecha' => $hoy->toDateString(),
+                'ini' => '10:30:00',
+                'fin' => '10:45:00',
+                'est' => $estados['confirmada'],
+                'motivo' => 'Evaluación respiratoria y control de rutina',
+                'con_saldo_pagado' => true,
+            ],
         ];
 
         foreach ($definicionCitas as $c) {
@@ -209,6 +239,9 @@ class CitasDemoSeeder extends Seeder
             $estadoLogico = $esCancelada ? 'cancelada' : 'activo';
             $obs = $c['obs'] ?? null;
 
+            // Obtener precio congelado de la especialidad
+            $precioConsultaEsp = (float)(DB::table('especialidades')->where('id_especialidad', $idEsp)->value('precio_consulta') ?: 100.00);
+
             // 1. Insertar / Actualizar Cita
             $citaExistente = DB::table('citas')->where('codigo_cita', $c['codigo'])->first();
             if ($citaExistente) {
@@ -216,6 +249,7 @@ class CitasDemoSeeder extends Seeder
                     'id_paciente' => $idPac,
                     'id_medico' => $idMed,
                     'id_especialidad' => $idEsp,
+                    'precio_consulta' => $precioConsultaEsp,
                     'id_estado_cita' => $idEst,
                     'fecha_cita' => $c['fecha'],
                     'hora_inicio' => $c['ini'],
@@ -235,6 +269,7 @@ class CitasDemoSeeder extends Seeder
                     'id_paciente' => $idPac,
                     'id_medico' => $idMed,
                     'id_especialidad' => $idEsp,
+                    'precio_consulta' => $precioConsultaEsp,
                     'id_estado_cita' => $idEst,
                     'fecha_cita' => $c['fecha'],
                     'hora_inicio' => $c['ini'],
@@ -250,35 +285,101 @@ class CitasDemoSeeder extends Seeder
                 ], 'id_cita');
             }
 
-            // 2. Registro en pagos_cita
-            $pagoExistente = DB::table('pagos_cita')->where('id_cita', $idCita)->first();
+            // 2. Registro en pagos_cita (Pago de Garantía)
+            $pagoExistente = DB::table('pagos_cita')
+                ->where('id_cita', $idCita)
+                ->where('tipo_pago', 'garantia')
+                ->first();
+
             $nroTrx = 'TRX-' . $c['codigo'];
             $estadoPago = $esCancelada ? 'reembolsado' : 'completado';
             $fechaReembolso = $esCancelada ? Carbon::parse($c['fecha'])->subDay()->toDateTimeString() : null;
 
             if ($pagoExistente) {
                 DB::table('pagos_cita')->where('id_pago', $pagoExistente->id_pago)->update([
+                    'tipo_pago' => 'garantia',
                     'monto' => 50.00,
+                    'monto_recibido' => null,
                     'metodo_pago' => 'qr_transferencia',
                     'nro_transaccion' => $nroTrx,
                     'estado_pago' => $estadoPago,
                     'fecha_reembolso' => $fechaReembolso,
+                    'id_usuario_registro' => $idCreador,
                     'updated_at' => now(),
                 ]);
                 $idPago = (int)$pagoExistente->id_pago;
             } else {
                 $idPago = (int)DB::table('pagos_cita')->insertGetId([
                     'id_cita' => $idCita,
+                    'tipo_pago' => 'garantia',
                     'monto' => 50.00,
+                    'monto_recibido' => null,
                     'metodo_pago' => 'qr_transferencia',
                     'nro_transaccion' => $nroTrx,
                     'estado_pago' => $estadoPago,
                     'detalles_pasarela' => json_encode(['autorizacion' => 'AUTH-' . rand(100000, 999999), 'banco' => 'Banco Nacional de Bolivia']),
                     'fecha_pago' => Carbon::parse($c['fecha'])->subDays(2)->toDateTimeString(),
                     'fecha_reembolso' => $fechaReembolso,
+                    'id_usuario_registro' => $idCreador,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ], 'id_pago');
+            }
+
+            DB::table('citas')->where('id_cita', $idCita)->update(['id_pago' => $idPago]);
+
+            // 3. Si la cita de demostración tiene saldo pagado en efectivo (CM-0049 de HOY)
+            if (!empty($c['con_saldo_pagado'])) {
+                $montoSaldo = max(0, $precioConsultaEsp - 50.00);
+                $montoRecibido = 100.00;
+                $cambio = round($montoRecibido - $montoSaldo, 2);
+                $nroTrxSaldo = 'TRX-' . $c['codigo'] . '-SALDO';
+
+                $pagoSaldoExistente = DB::table('pagos_cita')
+                    ->where('id_cita', $idCita)
+                    ->where('tipo_pago', 'saldo')
+                    ->first();
+
+                $detallesSaldo = [
+                    'tipo' => 'cobro_saldo_recepcion',
+                    'metodo' => 'efectivo',
+                    'precio_consulta' => $precioConsultaEsp,
+                    'garantia_pagada' => 50.00,
+                    'saldo_cobrado' => $montoSaldo,
+                    'monto_recibido' => $montoRecibido,
+                    'cambio' => $cambio,
+                    'operador' => 'recepcion1',
+                ];
+
+                if ($pagoSaldoExistente) {
+                    DB::table('pagos_cita')->where('id_pago', $pagoSaldoExistente->id_pago)->update([
+                        'tipo_pago' => 'saldo',
+                        'monto' => $montoSaldo,
+                        'monto_recibido' => $montoRecibido,
+                        'metodo_pago' => 'efectivo',
+                        'nro_transaccion' => $nroTrxSaldo,
+                        'estado_pago' => 'completado',
+                        'detalles_pasarela' => json_encode($detallesSaldo),
+                        'fecha_pago' => Carbon::now('America/La_Paz')->toDateTimeString(),
+                        'id_usuario_registro' => $idCreador,
+                        'updated_at' => now(),
+                    ]);
+                } else {
+                    DB::table('pagos_cita')->insert([
+                        'id_cita' => $idCita,
+                        'tipo_pago' => 'saldo',
+                        'monto' => $montoSaldo,
+                        'monto_recibido' => $montoRecibido,
+                        'metodo_pago' => 'efectivo',
+                        'nro_transaccion' => $nroTrxSaldo,
+                        'estado_pago' => 'completado',
+                        'detalles_pasarela' => json_encode($detallesSaldo),
+                        'fecha_pago' => Carbon::now('America/La_Paz')->toDateTimeString(),
+                        'id_usuario_registro' => $idCreador,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
             }
 
             DB::table('citas')->where('id_cita', $idCita)->update(['id_pago' => $idPago]);

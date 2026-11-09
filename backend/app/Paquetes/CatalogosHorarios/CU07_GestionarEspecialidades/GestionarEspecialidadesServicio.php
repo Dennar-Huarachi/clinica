@@ -25,18 +25,26 @@ class GestionarEspecialidadesServicio
             $query->where('estado', $estado);
         }
 
-        return $query->get()->toArray();
+        return array_map(function ($item) {
+            $esp = (array)$item;
+            $precio = isset($esp['precio_consulta']) ? (float)$esp['precio_consulta'] : 100.00;
+            $esp['precio_consulta'] = $precio;
+            $esp['precioConsulta'] = $precio;
+            return (object)$esp;
+        }, $query->get()->toArray());
     }
 
     public function crear(array $datos): int
     {
         $nombreNormalizado = GuardarEspecialidadRequest::normalizar($datos['nombre']);
+        $precioConsulta = isset($datos['precio_consulta']) ? (float)$datos['precio_consulta'] : (isset($datos['precioConsulta']) ? (float)$datos['precioConsulta'] : 100.00);
 
         $id = DB::table('especialidades')->insertGetId([
             'nombre' => trim($datos['nombre']),
             'nombre_normalizado' => $nombreNormalizado,
             'descripcion' => $datos['descripcion'] ?? null,
             'duracion_turno_minutos' => $datos['duracion_turno_minutos'] ?? 15,
+            'precio_consulta' => $precioConsulta,
             'reservable_en_linea' => $datos['reservable_en_linea'] ?? true,
             'estado' => $datos['estado'] ?? 'activo',
             'created_at' => now(),
@@ -52,6 +60,7 @@ class GestionarEspecialidadesServicio
             [
                 'nombre' => $datos['nombre'],
                 'nombre_normalizado' => $nombreNormalizado,
+                'precio_consulta' => $precioConsulta,
                 'reservable_en_linea' => $datos['reservable_en_linea'] ?? true
             ]
         );
@@ -72,11 +81,16 @@ class GestionarEspecialidadesServicio
             ? (bool)$datos['reservable_en_linea']
             : ($especialidad->reservable_en_linea ?? true);
 
+        $precioConsulta = isset($datos['precio_consulta'])
+            ? (float)$datos['precio_consulta']
+            : (isset($datos['precioConsulta']) ? (float)$datos['precioConsulta'] : ($especialidad->precio_consulta ?? 100.00));
+
         DB::table('especialidades')->where('id_especialidad', $id)->update([
             'nombre' => trim($datos['nombre']),
             'nombre_normalizado' => $nombreNormalizado,
             'descripcion' => $datos['descripcion'] ?? null,
             'duracion_turno_minutos' => $datos['duracion_turno_minutos'] ?? $especialidad->duracion_turno_minutos,
+            'precio_consulta' => $precioConsulta,
             'reservable_en_linea' => $reservable,
             'estado' => $datos['estado'] ?? $especialidad->estado,
             'updated_at' => now(),

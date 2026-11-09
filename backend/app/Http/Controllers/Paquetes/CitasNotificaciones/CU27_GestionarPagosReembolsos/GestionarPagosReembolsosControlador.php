@@ -91,4 +91,27 @@ class GestionarPagosReembolsosControlador extends Controller
             return RespuestaApi::error($e->getMessage(), $codigo);
         }
     }
+
+    public function procesarCobroSaldo(Request $request, int $id_cita = 0): JsonResponse
+    {
+        try {
+            $usuario = $request->attributes->get('usuario_autenticado') ?: $request->user();
+            $idCitaFinal = $id_cita > 0 ? $id_cita : (int)($request->route('id_cita') ?: $request->input('id_cita'));
+
+            $resultado = $this->servicio->procesarCobroSaldo(
+                $idCitaFinal,
+                $request->all(),
+                $usuario
+            );
+
+            return RespuestaApi::exito(
+                $resultado,
+                $resultado['mensaje'] ?? 'Saldo de consulta cobrado exitosamente',
+                200
+            );
+        } catch (\Exception $e) {
+            $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
+            return RespuestaApi::error($e->getMessage(), $codigo);
+        }
+    }
 }

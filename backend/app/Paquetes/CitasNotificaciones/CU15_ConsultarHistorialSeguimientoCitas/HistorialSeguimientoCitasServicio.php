@@ -26,6 +26,7 @@ class HistorialSeguimientoCitasServicio
                 'per_medico.nombres as medico_nombres',
                 'per_medico.apellidos as medico_apellidos',
                 'especialidades.nombre as especialidad_nombre',
+                'citas.precio_consulta as precio_consulta',
                 'estados_cita.codigo as estado_codigo',
                 'estados_cita.nombre as estado_nombre',
                 'atenciones_clinicas.id_atencion',
@@ -48,6 +49,40 @@ class HistorialSeguimientoCitasServicio
             $query->where('citas.codigo_cita', 'ilike', "%{$codigoCita}%");
         }
 
-        return $query->get()->toArray();
+        return $query->get()->map(function ($c) {
+            $fila = (array)$c;
+            $precio = isset($fila['precio_consulta']) && (float)$fila['precio_consulta'] > 0
+                ? (float)$fila['precio_consulta']
+                : 100.00;
+
+            $pagos = DB::table('pagos_cita')->where('id_cita', $fila['id_cita'])->get();
+            $montoPagado = (float)$pagos->where('estado_pago', 'completado')->sum('monto');
+            $tieneReembolso = $pagos->contains('estado_pago', 'reembolsado');
+
+            if ($montoPagado <= 0 && (!empty($fila['pago_monto']) || !empty($fila['pago_confirmado']))) {
+                $montoPagado = !empty($fila['pago_monto']) ? (float)$fila['pago_monto'] : 50.00;
+            }
+
+            $saldoPendiente = round(max(0, $precio - $montoPagado), 2);
+
+            if ($tieneReembolso) {
+                $estadoCobro = 'Reembolsado';
+            } elseif ($saldoPendiente <= 0) {
+                $estadoCobro = 'Pagada completa';
+            } else {
+                $estadoCobro = 'Saldo pendiente';
+            }
+
+            $fila['precioConsulta'] = $precio;
+            $fila['precio_consulta'] = $precio;
+            $fila['montoPagado'] = $montoPagado;
+            $fila['monto_pagado'] = $montoPagado;
+            $fila['saldoPendiente'] = $saldoPendiente;
+            $fila['saldo_pendiente'] = $saldoPendiente;
+            $fila['estadoCobro'] = $estadoCobro;
+            $fila['estado_cobro'] = $estadoCobro;
+
+            return (object)$fila;
+        })->toArray();
     }
 }

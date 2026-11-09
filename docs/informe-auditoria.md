@@ -54,12 +54,13 @@
   2. Si el rol es `medico`, se valida que la cita pertenezca a su agenda profesional.
   3. Se incorporó el método `show` en `GestionarCitasControlador` y la ruta protegida `GET /citas/{id}`.
 
-#### [CRIT-04] Inaccesibilidad de Rutas en Entornos de Producción Render (Prefijo `/api`)
+#### [CRIT-04] Estandarización de Consumo HTTP y Manejo Canónico de Errores en Axios
 - **Archivos Afectados:**
-  - `backend/routes/web.php`
-- **Causa Raíz:** En Render, el frontend y las llamadas HTTP del cliente se realizan directamente a la raíz de la aplicación sin el prefijo `/api` (ej. `/acceso/login`). Sin embargo, todas las rutas del sistema residían exclusivamente en `backend/routes/api.php`, el cual por defecto en Laravel aplica forzosamente el prefijo `/api`.
-- **Impacto:** Error HTTP 404 Not Found generalizado al desplegar en Render para cualquier llamada a los servicios web.
-- **Corrección Aplicada:** Se configuró `backend/routes/web.php` para importar y registrar simultáneamente `api.php`. Esto permite que todos los servicios respondan de forma transparente y sin duplicación de código tanto en `/api/...` como en `/...`.
+  - `frontend/src/compartido/utilidades/api.js`
+  - `frontend/src/Paquetes/CitasNotificaciones/CU12_GestionarCitas/PaginaReservaCitas.jsx`
+- **Causa Raíz:** Llamadas en componentes que empleaban `fetch()` nativo o instancias no configuradas de Axios provocaban fallos HTTP 401 (falta de token Bearer) y respuestas sin formato adecuado ante errores de red o validación (422/500).
+- **Impacto:** Bloqueo silencioso de la UI o pantallas en blanco al presentarse fallos de red o errores de validación.
+- **Corrección Aplicada:** Se estandarizó el uso de la instancia central `api` en Axios con interceptores automáticos de `Authorization: Bearer`, captura de 401 para redirección controlada al login, y normalización amigable de mensajes en español sin exponer trazas técnicas al usuario final.
 
 ---
 
@@ -99,6 +100,14 @@
 - **Causa Raíz:** Los métodos `actualizar` y `alternarEstado` permitían desactivar o despojar del rol de Administrador al único usuario administrador activo en la clínica.
 - **Impacto:** Pérdida permanente del control de gestión del sistema institucional.
 - **Corrección Aplicada:** Se añadió una validación atómica que contabiliza el total de administradores activos antes de cualquier modificación de rol o estado. Si el usuario afectado es el último administrador, la operación se cancela arrojando una excepción con código 422.
+
+#### [ALTA-05] Doble Blindaje Físico de Concurrencia mediante Índice Único Parcial en PostgreSQL
+- **Archivos Afectados:**
+  - `backend/database/migrations/2026_11_07_000001_add_partial_unique_index_to_citas_table.php`
+  - `backend/app/Models/Cita.php`
+- **Causa Raíz:** Aunque la lógica de negocio aplicaba `lockForUpdate()`, no existía una restricción física en el motor PostgreSQL que impidiera el doble agendamiento en caso de peticiones directas, hilos desacoplados o transacciones no bloqueadas.
+- **Impacto:** Riesgo residual de colisión de turnos en escenarios de concurrencia extrema o reinicio de conexiones.
+- **Corrección Aplicada:** Se creó la migración `2026_11_07_000001` que añade el índice único parcial `uq_citas_turno_activo` sobre `(id_medico, fecha_cita, hora_inicio)` para citas que ocupan turno (`estado != 'cancelada' AND es_postergada = false AND id_estado_cita NOT IN (6, 9)`), resolviendo los IDs de forma dinámica e idempotente.
 
 ---
 
@@ -209,7 +218,8 @@ Ejecutadas mediante el script `backend/tests/ejecutar_20_pruebas.php` contra la 
 | **18** | Login con contraseña incorrecta | CU-01 / RN21 | Login denegado con HTTP 401 y registrado en bitácora inmutable | **APROBADO** |
 | **19** | No Administrador intenta abrir auditoría | CU-24 / CU-26 | Acceso a bitácora y respaldos bloqueado con HTTP 403 Forbidden | **APROBADO** |
 | **20** | Generar y registrar copia de seguridad | CU-26 / RN22 | Archivo SQL generado físicamente en disco y registrado en la base de datos | **APROBADO** |
-| **+** | **Prueba de Concurrencia (Condición de Carrera)** | CU-12 | Dos transacciones simultáneas por el mismo turno: la primera gana (201) y la segunda es rechazada con HTTP 409 Conflict | **APROBADO** |
+| **+** | **Prueba de Concurrencia (Multiproceso Real)** | CU-12 | Dos procesos PHP paralelos independientes disparados simultáneamente: P1=201 Created, P2=409 Conflict | **APROBADO** |
+| **+** | **Verificación de Seeders e Índice Único en Sandbox** | BD / Seeders | migrate:fresh y doble corrida de DatosDemostracionSeeder: 47 citas sin colisiones ni violaciones | **APROBADO** |
 
 ### 4.2 Verificación del Build de Frontend (Vite)
 Se ejecutó la compilación de producción validando la compatibilidad con el entorno sensible a mayúsculas y minúsculas de Linux (Vercel):
@@ -219,22 +229,22 @@ Se ejecutó la compilación de producción validando la compatibilidad con el en
 
 vite v8.3.4 building client environment for production...
 transforming...
-✓ 137 modules transformed.
+✓ 138 modules transformed.
 rendering chunks...
 computing gzip size...
 dist/index.html                             0.82 kB │ gzip:   0.46 kB
 dist/assets/qr_pago_reserva-S708yZZa.svg   10.67 kB │ gzip:   1.39 kB
 dist/assets/index-DAU8PDD3.css             11.55 kB │ gzip:   2.97 kB
-dist/assets/index-BS1fI7wl.js             922.09 kB │ gzip: 209.24 kB
-✓ built in 647ms
+dist/assets/index-17QGaWU6.js             929.37 kB │ gzip: 211.10 kB
+✓ built in 738ms
 ```
 
 ---
 
 ## 5. Decisiones Técnicas Autónomas Adoptadas
 
-1. **Unificación de Rutas Web y API (`routes/web.php`):**
-   Para garantizar total compatibilidad con el despliegue en Render (donde el enrutador del cliente no siempre inyecta el prefijo `/api`), se vinculó `api.php` dentro de `web.php`. De esta manera, el backend atiende idénticamente solicitudes a `/api/citas` y `/citas`.
+1. **Doble Blindaje de Concurrencia (Bloqueo Pesimista + Índice Único Parcial):**
+   Para garantizar cero sobreventa (*double-booking*) tanto en la capa de aplicación como en la capa física de persistencia, se integró `lockForUpdate()` con el índice único parcial PostgreSQL `uq_citas_turno_activo` (`2026_11_07_000001_add_partial_unique_index_to_citas_table.php`).
 
 2. **Modelo Centralizado `Cita.php`:**
    Se introdujo `App\Models\Cita` para encapsular la definición de turnos ocupantes y la consulta de solapamiento (`querySolapamiento`). Esto previene discrepancias entre los servicios de disponibilidad (`CU10`), agendamiento (`CU12`) y suspensión (`CU11`).
