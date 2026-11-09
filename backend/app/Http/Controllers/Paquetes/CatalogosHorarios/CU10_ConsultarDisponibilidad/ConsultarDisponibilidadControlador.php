@@ -7,6 +7,7 @@ use App\Http\Requests\Paquetes\CatalogosHorarios\CU10_ConsultarDisponibilidad\Co
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use App\Nucleo\Errores\RespuestaApi;
 
 class ConsultarDisponibilidadControlador extends Controller
@@ -20,6 +21,10 @@ class ConsultarDisponibilidadControlador extends Controller
         $idMedico = (int)$request->input('id_medico');
         $idEspecialidad = (int)$request->input('id_especialidad');
         $fecha = (string)$request->input('fecha');
+
+        if (!$idEspecialidad && $idMedico) {
+            $idEspecialidad = (int) DB::table('medico_especialidad')->where('id_medico', $idMedico)->value('id_especialidad');
+        }
 
         $usuario = $request->attributes->get('usuario_autenticado');
         $rol = $usuario?->rol ? strtolower($usuario->rol) : null;

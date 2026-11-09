@@ -79,6 +79,8 @@ Route::get('/catalogos/especialidades-publicas', [GestionarEspecialidadesControl
 Route::get('/catalogos/medicos-publicos', [GestionarMedicosControlador::class, 'index']);
 Route::get('/catalogos/especialidades', [GestionarEspecialidadesControlador::class, 'index']);
 Route::get('/catalogos/medicos', [GestionarMedicosControlador::class, 'index']);
+Route::get('/disponibilidad', [ConsultarDisponibilidadControlador::class, 'consultar']);
+Route::get('/catalogos/disponibilidad', [ConsultarDisponibilidadControlador::class, 'consultar']);
 
 
 /*
@@ -95,6 +97,7 @@ Route::middleware(['sesion.clinica'])->group(function () {
 
     // --- PAQUETE 3: Catálogos y Horarios (CU10 - Decisión D9) ---
     Route::get('/catalogos/disponibilidad', [ConsultarDisponibilidadControlador::class, 'consultar']);
+    Route::get('/disponibilidad', [ConsultarDisponibilidadControlador::class, 'consultar']);
 
     // --- PAQUETE 2: PacientesPerfil ---
     Route::get('/perfil/mi-perfil', [GestionarMiPerfilControlador::class, 'show']);
@@ -107,6 +110,9 @@ Route::middleware(['sesion.clinica'])->group(function () {
     Route::get('/citas/{id}', [GestionarCitasControlador::class, 'show'])->whereNumber('id');
     Route::post('/citas', [GestionarCitasControlador::class, 'store'])->middleware('throttle:60,1');
     Route::put('/citas/{id}/reprogramar', [GestionarCitasControlador::class, 'reprogramar'])->middleware('throttle:60,1');
+    Route::put('/citas/reprogramar', [GestionarCitasControlador::class, 'reprogramar'])->middleware('throttle:60,1');
+    Route::post('/citas/{id}/reprogramar', [GestionarCitasControlador::class, 'reprogramar'])->middleware('throttle:60,1');
+    Route::post('/citas/reprogramar', [GestionarCitasControlador::class, 'reprogramar'])->middleware('throttle:60,1');
     Route::put('/citas/{id}/cancelar', [GestionarCitasControlador::class, 'cancelar'])->middleware('throttle:60,1');
     Route::put('/citas/{id}/confirmar', [GestionarCitasControlador::class, 'confirmar'])->middleware('throttle:60,1');
     Route::get('/citas/agenda', [ConsultarAgendaCitasControlador::class, 'index']);

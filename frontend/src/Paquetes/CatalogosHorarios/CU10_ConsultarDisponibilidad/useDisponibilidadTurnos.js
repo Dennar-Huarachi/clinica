@@ -31,7 +31,7 @@ export default function useDisponibilidadTurnos({
   const ultimoRefrescoRef = useRef(0);
 
   const consultarDisponibilidad = useCallback(() => {
-    if (!activo || !idMedico || !idEspecialidad || !fecha) {
+    if (!activo || !idMedico || !fecha) {
       setTurnos([]);
       setMotivoBloqueo(null);
       setErrorServidor(null);
@@ -55,17 +55,20 @@ export default function useDisponibilidadTurnos({
     // Parámetro único anti-caché en la URL, SIN encabezados personalizados para evitar bloqueos CORS
     const params = {
       id_medico: idMedico,
-      id_especialidad: idEspecialidad,
       fecha: fecha,
       _t: Date.now(),
     };
+
+    if (idEspecialidad) {
+      params.id_especialidad = idEspecialidad;
+    }
 
     if (rolUsuario) {
       params.rol = rolUsuario;
     }
 
     api
-      .get('/catalogos/disponibilidad', {
+      .get('/disponibilidad', {
         params,
         signal: nuevoController.signal,
       })
@@ -137,7 +140,7 @@ export default function useDisponibilidadTurnos({
     if (!activo) return;
 
     const manejarRefrescoFoco = () => {
-      if (document.visibilityState === 'visible' && idMedico && idEspecialidad && fecha) {
+      if (document.visibilityState === 'visible' && idMedico && fecha) {
         const ahora = Date.now();
         if (ahora - ultimoRefrescoRef.current >= 10000) {
           ultimoRefrescoRef.current = ahora;

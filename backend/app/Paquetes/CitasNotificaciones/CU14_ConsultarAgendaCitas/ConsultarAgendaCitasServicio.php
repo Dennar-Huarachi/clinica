@@ -55,6 +55,7 @@ class ConsultarAgendaCitasServicio
             'medicos.id_medico',
             'per_medico.nombres as medico_nombres',
             'per_medico.apellidos as medico_apellidos',
+            'citas.id_especialidad',
             'especialidades.nombre as especialidad_nombre',
             'citas.precio_consulta as precio_consulta',
             'pagos_cita.monto as pago_monto',

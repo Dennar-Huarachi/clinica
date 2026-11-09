@@ -18,7 +18,7 @@ class ConsultarDisponibilidadRequest extends FormRequestPersonalizado
     {
         return [
             'id_medico' => 'required|integer|exists:medicos,id_medico',
-            'id_especialidad' => 'required|integer|exists:especialidades,id_especialidad',
+            'id_especialidad' => 'nullable|integer|exists:especialidades,id_especialidad',
             'fecha' => 'required|date_format:Y-m-d',
         ];
     }

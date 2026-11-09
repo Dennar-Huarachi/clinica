@@ -276,6 +276,7 @@ export default function PaginaAgendaCitas() {
   const opcionesEstados = [
     { valor: 'pendiente', etiqueta: 'Programada / Pendiente' },
     { valor: 'confirmada', etiqueta: 'Confirmada' },
+    { valor: 'reprogramada', etiqueta: 'Reprogramada' },
     { valor: 'en_espera', etiqueta: 'En Sala / Presente' },
     { valor: 'atendida', etiqueta: 'Atendida' },
   ];
@@ -513,7 +514,7 @@ export default function PaginaAgendaCitas() {
                 const saldoPendiente = Number(c.saldoPendiente ?? c.saldo_pendiente ?? Math.max(0, precioConsulta - montoPagado));
                 const tieneSaldoPendiente = saldoPendiente > 0;
                 const estadoCobro = c.estadoCobro || c.estado_cobro || (tieneSaldoPendiente ? 'Saldo pendiente' : 'Pagada completa');
-                const esProgramadaOConfirmada = ['pendiente', 'programada', 'confirmada'].includes(c.estado_codigo);
+                const esProgramadaOConfirmada = ['pendiente', 'programada', 'confirmada', 'reprogramada'].includes(c.estado_codigo);
                 const puedeCobrarSaldo = esPersonal && esDeHoy && esProgramadaOConfirmada && tieneSaldoPendiente;
 
                 return (
@@ -584,7 +585,7 @@ export default function PaginaAgendaCitas() {
                           </button>
                         )}
 
-                        {['pendiente', 'confirmada'].includes(c.estado_codigo) && (
+                        {['pendiente', 'confirmada', 'reprogramada'].includes(c.estado_codigo) && (
                           <button
                             type="button"
                             onClick={() => marcarAsistencia(c.id_cita, 'en_espera')}
@@ -596,10 +597,13 @@ export default function PaginaAgendaCitas() {
                           </button>
                         )}
 
-                        {['pendiente', 'confirmada'].includes(c.estado_codigo) && !esMedico && (
+                        {['pendiente', 'confirmada', 'reprogramada'].includes(c.estado_codigo) && !esMedico && (
                           <button
                             type="button"
-                            onClick={() => abrirModalReprogramar(c)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              abrirModalReprogramar(c);
+                            }}
                             className="boton-terciario"
                             style={{ minHeight: '34px', padding: '0 0.6rem', fontSize: '0.8rem' }}
                             title="Reprogramar fecha u hora de la cita"
@@ -802,7 +806,7 @@ export default function PaginaAgendaCitas() {
                       const montoPagado = Number(c.montoPagado ?? c.monto_pagado ?? c.pago_monto ?? 50);
                       const saldoPendiente = Number(c.saldoPendiente ?? c.saldo_pendiente ?? Math.max(0, precioConsulta - montoPagado));
                       const tieneSaldoPendiente = saldoPendiente > 0;
-                      const esProgramadaOConfirmada = ['pendiente', 'programada', 'confirmada'].includes(c.estado_codigo);
+                      const esProgramadaOConfirmada = ['pendiente', 'programada', 'confirmada', 'reprogramada'].includes(c.estado_codigo);
                       const puedeCobrarSaldoDetalle = esPersonal && esDeHoy && esProgramadaOConfirmada && tieneSaldoPendiente;
 
                       if (!puedeCobrarSaldoDetalle) return null;
@@ -835,7 +839,7 @@ export default function PaginaAgendaCitas() {
                       </button>
                     )}
 
-                    {['pendiente', 'confirmada'].includes(c.estado_codigo) && (
+                    {['pendiente', 'confirmada', 'reprogramada'].includes(c.estado_codigo) && (
                       <button
                         type="button"
                         onClick={() => marcarAsistencia(c.id_cita, 'en_espera')}
@@ -845,17 +849,20 @@ export default function PaginaAgendaCitas() {
                       </button>
                     )}
 
-                    {['pendiente', 'confirmada'].includes(c.estado_codigo) && !esMedico && (
+                    {['pendiente', 'confirmada', 'reprogramada'].includes(c.estado_codigo) && !esMedico && (
                       <button
                         type="button"
-                        onClick={() => abrirModalReprogramar(c)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          abrirModalReprogramar(c);
+                        }}
                         className="boton-secundario"
                       >
                         🔄 Reprogramar Fecha / Hora
                       </button>
                     )}
 
-                    {['pendiente', 'confirmada', 'en_espera'].includes(c.estado_codigo) && (
+                    {['pendiente', 'confirmada', 'en_espera', 'reprogramada'].includes(c.estado_codigo) && (
                       <button
                         type="button"
                         onClick={() => marcarAsistencia(c.id_cita, 'inasistencia')}
@@ -894,7 +901,7 @@ export default function PaginaAgendaCitas() {
                       </button>
                     )}
 
-                    {['pendiente', 'confirmada', 'en_espera'].includes(c.estado_codigo) && (
+                    {['pendiente', 'confirmada', 'en_espera', 'reprogramada'].includes(c.estado_codigo) && (
                       <button
                         type="button"
                         onClick={() => abrirModalCancelar(c)}
@@ -929,6 +936,7 @@ export default function PaginaAgendaCitas() {
             esAdmin={esAdmin}
             alConfirmarCita={confirmarCita}
             alMarcarAsistencia={marcarAsistencia}
+            alAbrirModalReprogramar={abrirModalReprogramar}
             alAbrirModalCancelar={abrirModalCancelar}
             alAbrirModalCorreccionRN16={abrirModalCorreccionRN16}
           />
@@ -1123,6 +1131,7 @@ export default function PaginaAgendaCitas() {
           abierto={Boolean(citaReprogramar)}
           onCerrar={() => setCitaReprogramar(null)}
           cita={citaReprogramar}
+          especialidades={especialidades}
           onConfirmar={ejecutarReprogramacion}
           guardando={procesandoReprogramacion}
         />

@@ -78,12 +78,23 @@ class GestionarCitasControlador extends Controller
         }
     }
 
-    public function reprogramar(ReprogramarCitaRequest $request, int $id): JsonResponse
+    public function reprogramar(ReprogramarCitaRequest $request, $id = null): JsonResponse
     {
         try {
+            $idCita = (int) ($id ?: $request->route('id') ?: $request->input('id_cita') ?: $request->input('id'));
+            if (!$idCita) {
+                return RespuestaApi::error('El identificador de la cita es obligatorio.', 422);
+            }
+
             $usuario = $request->attributes->get('usuario_autenticado');
+            $datos = $request->validated();
+
+            if (!empty($datos['hora_inicio']) && strlen($datos['hora_inicio']) > 5) {
+                $datos['hora_inicio'] = substr($datos['hora_inicio'], 0, 5);
+            }
+
             // Pasar objeto de usuario para validación estricta de propiedad de cita (RN19)
-            $resultado = $this->servicio->reprogramar($id, $request->validated(), $usuario);
+            $resultado = $this->servicio->reprogramar($idCita, $datos, $usuario);
             return RespuestaApi::exito($resultado, 'Cita reprogramada exitosamente');
         } catch (\Throwable $e) {
             $codigo = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;

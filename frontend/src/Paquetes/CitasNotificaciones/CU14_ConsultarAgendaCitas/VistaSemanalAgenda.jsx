@@ -50,6 +50,13 @@ function obtenerEstiloEstado(codigoEstado) {
         texto: '#7E22CE',
         etiqueta: 'Postergada',
       };
+    case 'reprogramada':
+      return {
+        fondo: '#EFF6FF',
+        borde: '#3B82F6',
+        texto: '#1D4ED8',
+        etiqueta: 'Reprogramada',
+      };
     case 'pendiente':
     default:
       return {
@@ -122,6 +129,7 @@ export default function VistaSemanalAgenda({
   esAdmin = false,
   alConfirmarCita,
   alMarcarAsistencia,
+  alAbrirModalReprogramar,
   alAbrirModalCancelar,
   alAbrirModalCorreccionRN16,
 }) {
@@ -456,7 +464,7 @@ export default function VistaSemanalAgenda({
                 </button>
               )}
 
-              {['pendiente', 'confirmada'].includes(citaDetalle.estado_codigo) && alMarcarAsistencia && (
+              {['pendiente', 'confirmada', 'reprogramada'].includes(citaDetalle.estado_codigo) && alMarcarAsistencia && (
                 <button
                   type="button"
                   onClick={() => {
@@ -467,6 +475,21 @@ export default function VistaSemanalAgenda({
                   className="boton-primario"
                 >
                   📍 Marcar Presente / En Sala
+                </button>
+              )}
+
+              {['pendiente', 'confirmada', 'reprogramada'].includes(citaDetalle.estado_codigo) && !esMedico && alAbrirModalReprogramar && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const c = citaDetalle;
+                    setCitaDetalle(null);
+                    alAbrirModalReprogramar(c);
+                  }}
+                  className="boton-secundario"
+                >
+                  🔄 Reprogramar Fecha / Hora
                 </button>
               )}
 
@@ -499,7 +522,7 @@ export default function VistaSemanalAgenda({
                 </button>
               )}
 
-              {['pendiente', 'confirmada', 'en_espera'].includes(citaDetalle.estado_codigo) && alMarcarAsistencia && (
+              {['pendiente', 'confirmada', 'en_espera', 'reprogramada'].includes(citaDetalle.estado_codigo) && alMarcarAsistencia && (
                 <button
                   type="button"
                   onClick={() => {
@@ -514,7 +537,7 @@ export default function VistaSemanalAgenda({
                 </button>
               )}
 
-              {['pendiente', 'confirmada', 'en_espera'].includes(citaDetalle.estado_codigo) && alAbrirModalCancelar && (
+              {['pendiente', 'confirmada', 'en_espera', 'reprogramada'].includes(citaDetalle.estado_codigo) && alAbrirModalCancelar && (
                 <button
                   type="button"
                   onClick={() => {

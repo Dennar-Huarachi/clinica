@@ -272,7 +272,11 @@ class GestionarCitasServicio
             // Blindaje IDOR (RN19): Si es paciente, verificar que la cita le pertenezca estrictamente
             if ($rol === 'paciente') {
                 $idPacienteUsuario = (int)($usuarioOperador->id_paciente ?? 0);
-                if (!$idPacienteUsuario) {
+                if (!$idPacienteUsuario && !empty($usuarioOperador->id_persona)) {
+                    $paciente = DB::table('pacientes')->where('id_persona', $usuarioOperador->id_persona)->first();
+                    $idPacienteUsuario = (int)($paciente?->id_paciente ?? 0);
+                }
+                if (!$idPacienteUsuario && !empty($usuarioOperador->id_usuario)) {
                     $paciente = DB::table('pacientes')->where('id_usuario', $usuarioOperador->id_usuario)->first();
                     $idPacienteUsuario = (int)($paciente?->id_paciente ?? 0);
                 }
@@ -283,6 +287,9 @@ class GestionarCitasServicio
 
             $fecha = $datos['fecha_cita'];
             $horaInicioStr = $datos['hora_inicio'];
+            if (strlen($horaInicioStr) > 5) {
+                $horaInicioStr = substr($horaInicioStr, 0, 5);
+            }
 
             // RN06: La nueva fecha no puede ser pasada
             $hoy = Carbon::today('America/La_Paz')->format('Y-m-d');
@@ -352,16 +359,41 @@ class GestionarCitasServicio
                 'REPROGRAMAR_CITA',
                 'citas',
                 (string)$idCita,
-                ['fecha' => $cita->fecha_cita, 'hora' => $cita->hora_inicio],
-                ['fecha' => $fecha, 'hora' => $horaInicioStr],
+                ['fecha' => $cita->fecha_cita, 'hora' => $cita->hora_inicio, 'estado' => $estadoCitaActual],
+                ['fecha' => $fecha, 'hora' => $horaInicioStr, 'estado' => 'reprogramada', 'motivo' => $datos['motivo_reprogramacion'] ?? 'Solicitud'],
                 $idUsuario
             );
+
+            // Registrar notificación informativa para el paciente
+            $usuarioPaciente = DB::table('pacientes')
+                ->join('usuarios', 'pacientes.id_persona', '=', 'usuarios.id_persona')
+                ->where('pacientes.id_paciente', $cita->id_paciente)
+                ->select('usuarios.id_usuario')
+                ->first();
+
+            if ($usuarioPaciente) {
+                DB::table('notificaciones')->insert([
+                    'id_usuario' => $usuarioPaciente->id_usuario,
+                    'tipo' => 'reprogramacion_cita',
+                    'titulo' => 'Cita reprogramada',
+                    'mensaje' => "Su cita con código {$cita->codigo_cita} ha sido reprogramada para el {$fecha} a las {$horaInicioStr}.",
+                    'metadata' => json_encode([
+                        'id_cita' => $idCita,
+                        'codigo_cita' => $cita->codigo_cita,
+                        'fecha' => $fecha,
+                        'hora' => $horaInicioStr
+                    ]),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
 
             return [
                 'id_cita' => $idCita,
                 'codigo_cita' => $cita->codigo_cita,
                 'nueva_fecha' => $fecha,
                 'nueva_hora' => $horaInicioStr,
+                'estado' => 'reprogramada',
             ];
         });
     } catch (\Illuminate\Database\UniqueConstraintViolationException | \Illuminate\Database\QueryException $e) {

@@ -7,6 +7,7 @@ export default function ModalReprogramarCita({
   cita,
   onConfirmar,
   guardando = false,
+  especialidades = [],
 }) {
   const hoyStr = new Date().toISOString().split('T')[0];
 
@@ -14,6 +15,16 @@ export default function ModalReprogramarCita({
   const [turnoSeleccionado, setTurnoSeleccionado] = useState(null);
   const [motivoReprogramacion, setMotivoReprogramacion] = useState('');
   const [errorLocal, setErrorLocal] = useState(null);
+
+  // Obtener especialidad si no viniera directamente en la cita
+  const idEspecialidadFinal =
+    cita?.id_especialidad ||
+    especialidades?.find(
+      (e) =>
+        e.nombre === cita?.especialidad_nombre ||
+        e.nombre === cita?.especialidad ||
+        e.id_especialidad === cita?.id_especialidad
+    )?.id_especialidad;
 
   const {
     turnos,
@@ -24,7 +35,7 @@ export default function ModalReprogramarCita({
     refrescar: refrescarTurnos,
   } = useDisponibilidadTurnos({
     idMedico: cita?.id_medico,
-    idEspecialidad: cita?.id_especialidad,
+    idEspecialidad: idEspecialidadFinal,
     fecha: nuevaFecha,
     turnoSeleccionado,
     onDeseleccionarTurno: () => setTurnoSeleccionado(null),
@@ -44,8 +55,10 @@ export default function ModalReprogramarCita({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setErrorLocal(null);
+
     if (!turnoSeleccionado) {
-      setErrorLocal('Debe seleccionar un turno médico disponible.');
+      setErrorLocal('Debe seleccionar un horario disponible para la cita.');
       return;
     }
 
@@ -53,9 +66,10 @@ export default function ModalReprogramarCita({
     if (horaLimpia.length > 5) horaLimpia = horaLimpia.slice(0, 5);
 
     const payload = {
+      id_cita: cita.id_cita,
       fecha_cita: nuevaFecha,
       hora_inicio: horaLimpia,
-      motivo_reprogramacion: motivoReprogramacion.trim() || 'Reprogramación a solicitud del paciente en ventanilla',
+      motivo_reprogramacion: motivoReprogramacion.trim() || 'Reprogramación solicitada en ventanilla',
     };
 
     onConfirmar(payload, (error) => {
@@ -65,37 +79,87 @@ export default function ModalReprogramarCita({
     });
   };
 
+  const pacienteNombre = cita.paciente_apellidos
+    ? `${cita.paciente_apellidos}, ${cita.paciente_nombres || ''}`
+    : (cita.paciente || 'Paciente');
+
+  const medicoNombre = cita.medico_apellidos
+    ? `Dr(a). ${cita.medico_apellidos}, ${cita.medico_nombres || ''}`
+    : (cita.medico || 'Médico asignado');
+
+  const especialidadNombre = cita.especialidad_nombre || cita.especialidad || 'Consulta Externa';
+  const horaActualStr = cita.hora_inicio ? cita.hora_inicio.substring(0, 5) : '--:--';
+
   return (
-    <div className="modal-backdrop" onClick={onCerrar}>
+    <div
+      className="modal-backdrop modal-overlay"
+      onClick={onCerrar}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(15, 23, 42, 0.65)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '1rem',
+      }}
+    >
       <div
-        className="modal-contenido tarjeta"
+        className="modal-contenido modal-contenedor tarjeta"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        style={{ maxWidth: '600px', width: '95%' }}
+        style={{
+          maxWidth: '580px',
+          width: '100%',
+          backgroundColor: '#FFFFFF',
+          borderRadius: '12px',
+          padding: '1.5rem',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+        }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '0.75rem' }}>
+        {/* Cabecera del Modal */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '1rem',
+            borderBottom: '1px solid #E2E8F0',
+            paddingBottom: '0.75rem',
+          }}
+        >
           <div>
-            <h3 style={{ margin: 0, color: 'var(--azul-petroleo, #0A6C84)' }}>
-              Reprogramar Turno de Cita Médica
+            <h3 style={{ margin: 0, color: 'var(--azul-petroleo, #0A6C84)', fontSize: '1.25rem' }}>
+              Reprogramar Cita Médica
             </h3>
-            <p style={{ margin: '0.25rem 0 0', color: 'var(--texto-sec, #64748B)', fontSize: '0.88rem' }}>
-              Cita: <b>{cita.codigo_cita}</b> — {cita.paciente_apellidos}, {cita.paciente_nombres}
+            <p style={{ margin: '0.25rem 0 0', color: 'var(--texto-sec, #64748B)', fontSize: '0.85rem' }}>
+              Seleccione una nueva fecha y horario disponible para el paciente.
             </p>
           </div>
           <button
             type="button"
             onClick={onCerrar}
-            style={{ background: 'none', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: '#64748B' }}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '1.25rem',
+              cursor: 'pointer',
+              color: '#64748B',
+              padding: '4px 8px',
+            }}
             aria-label="Cerrar modal"
           >
             ✕
           </button>
         </div>
 
+        {/* Alerta de Error Local */}
         {errorLocal && (
           <div
-            className="alerta-error"
             style={{
               padding: '0.75rem 1rem',
               borderRadius: '8px',
@@ -110,18 +174,81 @@ export default function ModalReprogramarCita({
           </div>
         )}
 
-        <div style={{ background: '#F8FAFC', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.88rem' }}>
-          <div><strong>Médico:</strong> Dr(a). {cita.medico_apellidos || cita.medico} ({cita.especialidad_nombre || cita.especialidad})</div>
-          <div><strong>Turno actual:</strong> {cita.fecha_cita} a las {cita.hora_inicio}</div>
-          <div style={{ marginTop: '0.4rem', color: '#0A6C84', fontWeight: 500, fontSize: '0.82rem' }}>
-            ℹ️ Su garantía se mantiene para la nueva fecha; no pierde su pago.
+        {/* 1. Datos Actuales de la Cita */}
+        <div
+          style={{
+            background: '#F8FAFC',
+            border: '1px solid #E2E8F0',
+            padding: '0.85rem 1rem',
+            borderRadius: '8px',
+            marginBottom: '1.25rem',
+            fontSize: '0.88rem',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '0.5rem 1rem',
+          }}
+        >
+          <div>
+            <span style={{ color: '#64748B', fontSize: '0.78rem', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>
+              Código de Cita
+            </span>
+            <span className="badge-codigo-turquesa" style={{ marginTop: '2px' }}>
+              {cita.codigo_cita}
+            </span>
+          </div>
+
+          <div>
+            <span style={{ color: '#64748B', fontSize: '0.78rem', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>
+              Paciente
+            </span>
+            <span style={{ fontWeight: 600, color: '#1E293B' }}>
+              {pacienteNombre}
+            </span>
+            {cita.paciente_ci && (
+              <span style={{ fontSize: '0.8rem', color: '#64748B', marginLeft: '4px' }}>
+                (CI: {cita.paciente_ci})
+              </span>
+            )}
+          </div>
+
+          <div>
+            <span style={{ color: '#64748B', fontSize: '0.78rem', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>
+              Médico
+            </span>
+            <span style={{ fontWeight: 600, color: '#1E293B' }}>
+              {medicoNombre}
+            </span>
+          </div>
+
+          <div>
+            <span style={{ color: '#64748B', fontSize: '0.78rem', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>
+              Especialidad
+            </span>
+            <span style={{ fontWeight: 600, color: '#0A6C84' }}>
+              {especialidadNombre}
+            </span>
+          </div>
+
+          <div style={{ gridColumn: '1 / -1', borderTop: '1px dashed #CBD5E1', paddingTop: '0.4rem', marginTop: '0.2rem' }}>
+            <span style={{ color: '#64748B', fontSize: '0.8rem' }}>
+              Turno actual: <strong style={{ color: '#B91C1C' }}>{cita.fecha_cita} a las {horaActualStr}</strong>
+            </span>
+            <span style={{ margin: '0 0.5rem', color: '#CBD5E1' }}>•</span>
+            <span style={{ color: '#0A6C84', fontSize: '0.8rem', fontWeight: 500 }}>
+              Garantía pagada conservada intacta
+            </span>
           </div>
         </div>
 
+        {/* Formulario de Reprogramación */}
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="nueva-fecha-reprog" style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.35rem' }}>
-              Nueva Fecha de Consulta *
+          {/* 2. Selección de Nueva Fecha */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label
+              htmlFor="nueva-fecha-reprog"
+              style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.35rem', color: '#1E293B' }}
+            >
+              Nueva Fecha de Atención *
             </label>
             <input
               type="date"
@@ -131,46 +258,120 @@ export default function ModalReprogramarCita({
               min={hoyStr}
               onChange={(e) => setNuevaFecha(e.target.value)}
               disabled={guardando}
-              style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid #CBD5E1' }}
+              required
+              style={{
+                width: '100%',
+                padding: '0.65rem',
+                borderRadius: '8px',
+                border: '1px solid #CBD5E1',
+                fontSize: '0.9rem',
+                boxSizing: 'border-box',
+              }}
             />
           </div>
 
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.35rem', color: '#0A6C84' }}>
-              Turnos Disponibles para el {nuevaFecha}:
-            </label>
+          {/* Horarios Disponibles en Tiempo Real (CU-10) */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+              <label style={{ fontWeight: 600, fontSize: '0.88rem', color: '#0A6C84' }}>
+                Horarios Disponibles para el {nuevaFecha}:
+              </label>
+              <button
+                type="button"
+                onClick={refrescarTurnos}
+                className="boton-terciario"
+                style={{ fontSize: '0.75rem', padding: '2px 8px', minHeight: 'auto' }}
+                title="Actualizar disponibilidad"
+              >
+                🔄 Actualizar
+              </button>
+            </div>
 
             {cargandoTurnos ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0A6C84', padding: '0.75rem 0' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  color: '#0A6C84',
+                  padding: '1.25rem',
+                  background: '#F0F9FF',
+                  borderRadius: '8px',
+                  justifyContent: 'center',
+                }}
+              >
                 <span className="spinner-tabla" style={{ width: '16px', height: '16px' }} />
-                <span style={{ fontSize: '0.88rem', fontStyle: 'italic' }}>Calculando turnos disponibles en tiempo real…</span>
+                <span style={{ fontSize: '0.88rem', fontStyle: 'italic' }}>
+                  Consultando turnos libres en tiempo real…
+                </span>
               </div>
             ) : motivoBloqueo ? (
-              <div style={{ padding: '0.75rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '6px', color: '#B91C1C', fontSize: '0.88rem' }}>
+              <div
+                style={{
+                  padding: '0.85rem',
+                  background: '#FEF2F2',
+                  border: '1px solid #FCA5A5',
+                  borderRadius: '8px',
+                  color: '#B91C1C',
+                  fontSize: '0.88rem',
+                }}
+              >
                 {motivoBloqueo}
               </div>
             ) : errorServidor ? (
-              <div style={{ padding: '0.75rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '6px', color: '#B91C1C', fontSize: '0.88rem' }}>
+              <div
+                style={{
+                  padding: '0.85rem',
+                  background: '#FEF2F2',
+                  border: '1px solid #FCA5A5',
+                  borderRadius: '8px',
+                  color: '#B91C1C',
+                  fontSize: '0.88rem',
+                }}
+              >
                 {errorServidor}
               </div>
-            ) : turnosDisponibles.length === 0 ? (
-              <div style={{ padding: '0.75rem', background: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: '6px', textAlign: 'center', color: '#64748B', fontSize: '0.88rem' }}>
-                No hay turnos disponibles para esta fecha. Elija otra fecha u otro médico.
+            ) : turnos.filter((t) => t.disponible === true || t.disponible === 1).length === 0 ? (
+              <div
+                style={{
+                  padding: '1rem',
+                  background: '#F8FAFC',
+                  border: '1px dashed #CBD5E1',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                  color: '#64748B',
+                  fontSize: '0.88rem',
+                }}
+              >
+                No hay turnos libres disponibles para la fecha seleccionada. Por favor seleccione otra fecha.
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '8px', maxHeight: '180px', overflowY: 'auto', padding: '4px' }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))',
+                  gap: '8px',
+                  maxHeight: '190px',
+                  overflowY: 'auto',
+                  padding: '4px',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '8px',
+                  backgroundColor: '#FFFFFF',
+                }}
+              >
                 {turnos
                   .filter((t) => t.disponible === true || t.disponible === 1)
                   .map((t) => {
-                    const seleccionado = turnoSeleccionado?.hora_inicio === t.hora_inicio;
+                    const horaFormateada = t.hora_inicio ? String(t.hora_inicio).substring(0, 5) : '';
+                    const seleccionado = turnoSeleccionado?.hora_inicio === horaFormateada;
                     return (
                       <button
                         key={t.hora_inicio}
                         type="button"
                         disabled={guardando}
-                        onClick={() => setTurnoSeleccionado(t)}
+                        onClick={() => setTurnoSeleccionado({ ...t, hora_inicio: horaFormateada })}
                         style={{
-                          padding: '0.5rem',
+                          padding: '0.55rem 0.35rem',
                           borderRadius: '6px',
                           border: seleccionado ? '2px solid #F28C1E' : '1px solid #CBD5E1',
                           background: seleccionado ? '#F28C1E' : '#FFFFFF',
@@ -178,9 +379,11 @@ export default function ModalReprogramarCita({
                           fontWeight: 700,
                           fontSize: '0.88rem',
                           cursor: 'pointer',
+                          textAlign: 'center',
+                          transition: 'all 0.15s ease',
                         }}
                       >
-                        {t.hora_inicio}
+                        {horaFormateada}
                       </button>
                     );
                   })}
@@ -188,34 +391,60 @@ export default function ModalReprogramarCita({
             )}
 
             {turnoSeleccionado && (
-              <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#166534', fontWeight: 600 }}>
-                ✓ Turno seleccionado: {turnoSeleccionado.hora_inicio}
+              <div
+                style={{
+                  marginTop: '0.5rem',
+                  fontSize: '0.85rem',
+                  color: '#15803D',
+                  fontWeight: 600,
+                  backgroundColor: '#F0FDF4',
+                  padding: '0.35rem 0.65rem',
+                  borderRadius: '6px',
+                  border: '1px solid #BBF7D0',
+                  display: 'inline-block',
+                }}
+              >
+                ✓ Nuevo horario seleccionado: <strong>{turnoSeleccionado.hora_inicio}</strong>
               </div>
             )}
           </div>
 
+          {/* 3. Motivo u Observación de la Reprogramación */}
           <div style={{ marginBottom: '1.25rem' }}>
-            <label htmlFor="motivo-reprog" style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.35rem' }}>
-              Motivo de Reprogramación *
+            <label
+              htmlFor="motivo-reprog"
+              style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.35rem', color: '#1E293B' }}
+            >
+              Motivo u Observación de la Reprogramación
             </label>
             <textarea
               id="motivo-reprog"
               value={motivoReprogramacion}
               onChange={(e) => setMotivoReprogramacion(e.target.value)}
-              placeholder="Indique la causa del cambio de fecha/hora..."
+              placeholder="Indique la causa o detalle del cambio de horario (opcional)..."
               rows={2}
               disabled={guardando}
-              style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid #CBD5E1', resize: 'vertical' }}
+              style={{
+                width: '100%',
+                padding: '0.65rem',
+                borderRadius: '8px',
+                border: '1px solid #CBD5E1',
+                fontSize: '0.88rem',
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                boxSizing: 'border-box',
+              }}
             />
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+          {/* 4. Botones de Acción */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid #E2E8F0', paddingTop: '1rem' }}>
             <button
               type="button"
               onClick={onCerrar}
               disabled={guardando}
               className="boton-terciario"
-              style={{ minHeight: '40px', padding: '0 1rem' }}
+              style={{ minHeight: '42px', padding: '0 1.25rem' }}
             >
               Cancelar
             </button>
@@ -223,9 +452,14 @@ export default function ModalReprogramarCita({
               type="submit"
               disabled={guardando || !turnoSeleccionado}
               className="boton-primario"
-              style={{ minHeight: '40px', padding: '0 1.25rem' }}
+              style={{
+                minHeight: '42px',
+                padding: '0 1.5rem',
+                backgroundColor: '#0A6C84',
+                borderColor: '#0A6C84',
+              }}
             >
-              {guardando ? 'Reprogramando…' : 'Confirmar Reprogramación'}
+              {guardando ? 'Reprogramando cita…' : 'Confirmar Reprogramación'}
             </button>
           </div>
         </form>
