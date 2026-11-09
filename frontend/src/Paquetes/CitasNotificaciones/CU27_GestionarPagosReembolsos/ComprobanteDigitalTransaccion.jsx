@@ -3,7 +3,16 @@ import React from 'react';
 /**
  * Comprobante digital accesible e inmutable de transacción de pago de garantía (CU-27 / D17).
  */
-export default function ComprobanteDigitalTransaccion({ comprobante, alCerrar, alIrAHistorial }) {
+export default function ComprobanteDigitalTransaccion({
+  comprobante: comprobanteProp,
+  datosComprobante,
+  alCerrar: alCerrarProp,
+  onCerrar,
+  alIrAHistorial,
+}) {
+  const comprobante = comprobanteProp || datosComprobante;
+  const alCerrar = alCerrarProp || onCerrar;
+
   if (!comprobante) return null;
 
   return (

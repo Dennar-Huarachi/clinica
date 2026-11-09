@@ -42,7 +42,7 @@ export default function PaginaAgendaCitas() {
 
   // Estados para Cobro de Saldo en Recepción (CU-27 / CU-14)
   const [citaCobrarSaldo, setCitaCobrarSaldo] = useState(null);
-  const [comprobanteSaldoExito, setComprobanteSaldoExito] = useState(null);
+  const [comprobanteSaldo, setComprobanteSaldo] = useState(null);
 
   const usuario = JSON.parse(localStorage.getItem('usuario_clinica') || '{}');
   const rol = (usuario?.rol || '').toLowerCase();
@@ -232,7 +232,7 @@ export default function PaginaAgendaCitas() {
 
   // Manejador de Cobro de Saldo Exitoso en Recepción (CU-27 / CU-14)
   const manejarCobroSaldoExitoso = (datos) => {
-    setComprobanteSaldoExito(datos.comprobante || {
+    setComprobanteSaldo(datos.comprobante || {
       codigo_cita: citaCobrarSaldo?.codigo_cita,
       nro_transaccion: datos.nro_transaccion || 'TX-SALDO-OK',
       saldo_cobrado: datos.saldoPendiente || 50,
@@ -1138,9 +1138,8 @@ export default function PaginaAgendaCitas() {
         {/* Modal de Comprobante Digital tras cobrar el saldo */}
         {comprobanteSaldo && (
           <ComprobanteDigitalTransaccion
-            abierto={Boolean(comprobanteSaldo)}
-            onCerrar={() => setComprobanteSaldo(null)}
-            datosComprobante={comprobanteSaldo}
+            comprobante={comprobanteSaldo}
+            alCerrar={() => setComprobanteSaldo(null)}
           />
         )}
       </div>

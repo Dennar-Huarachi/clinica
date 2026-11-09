@@ -74,9 +74,11 @@ Route::post('/acceso/recuperacion/solicitar', [RecuperarContrasenaControlador::c
 Route::post('/acceso/recuperacion/verificar', [RecuperarContrasenaControlador::class, 'verificar'])->middleware('throttle:10,1');
 Route::post('/acceso/recuperacion/restablecer', [RecuperarContrasenaControlador::class, 'restablecer'])->middleware('throttle:10,1');
 
-// Catálogos públicos de especialidades y médicos para reserva
+// Catálogos públicos de especialidades y médicos para reserva y consultas
 Route::get('/catalogos/especialidades-publicas', [GestionarEspecialidadesControlador::class, 'index']);
 Route::get('/catalogos/medicos-publicos', [GestionarMedicosControlador::class, 'index']);
+Route::get('/catalogos/especialidades', [GestionarEspecialidadesControlador::class, 'index']);
+Route::get('/catalogos/medicos', [GestionarMedicosControlador::class, 'index']);
 
 
 /*
