@@ -10,7 +10,7 @@
 [![Frontend en Vercel](https://img.shields.io/badge/Frontend-Vercel%20Live-000000?style=for-the-badge&logo=vercel)](https://clinica-gilt-iota.vercel.app)
 [![Backend en Render](https://img.shields.io/badge/Backend-Render%20Live-46E3B7?style=for-the-badge&logo=render)](https://clinica-backend-plaw.onrender.com)
 [![Base de Datos en Supabase](https://img.shields.io/badge/Database-Supabase%20PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase)](https://supabase.com)
-[![Casos de Uso](https://img.shields.io/badge/Casos%20de%20Uso-26%20%2F%2026%20Completados-success?style=for-the-badge)](#listado-oficial-de-casos-de-uso-programados)
+[![Casos de Uso](https://img.shields.io/badge/Casos%20de%20Uso-27%20%2F%2027%20Completados-success?style=for-the-badge)](#listado-oficial-de-casos-de-uso-programados)
 
 <br/>
 
@@ -228,19 +228,26 @@ IniciarCerrarSesionControlador --> LayoutPrincipal.jsx: RespuestaApi::exito(null
 
 #### [CU-02] Cambiar y recuperar contraseña
 * **Actores:** `Usuario Autenticado` (`Paciente`, `Administrador`, `Recepcionista`, `Médico`), `Usuario con Credencial Olvidada`.
-* **Objetivo:** Actualizar la contraseña en sesión verificando el hash previo, impidiendo duplicidad con la contraseña actual y revocando la bandera `debe_cambiar_contrasena`, así como gestionar la solicitud de recuperación de credenciales mediante correo electrónico (simulado para Ciclo 1).
+* **Objetivo:** Actualizar la contraseña en sesión verificando el hash previo, impidiendo duplicidad con la contraseña actual y revocando la bandera `debe_cambiar_contrasena`, así como gestionar la solicitud de recuperación de credenciales mediante flujo de 3 pasos con código de verificación cifrado y comprobante de seguridad.
 
 ##### 1. Análisis de Clases (BCE)
 * **Frontera (Boundary):**
+  - `frontend/src/Paquetes/AccesoCuentas/CU02_CambiarContrasena/ModalRecuperarContrasena.jsx`
   - `frontend/src/Paquetes/AccesoCuentas/CU01_IniciarCerrarSesion/ModalRecuperarPassword.jsx`
-  - Modal o formulario de perfil de cambio de clave.
+  - `frontend/src/Paquetes/AccesoCuentas/CU02_CambiarContrasena/ModalCambiarContrasena.jsx`
+  - `frontend/src/Paquetes/AccesoCuentas/CU02_CambiarContrasena/PaginaCambiarContrasena.jsx`
 * **Control:**
   - `app/Http/Controllers/Paquetes/AccesoCuentas/CU02_CambiarContrasena/CambiarContrasenaControlador.php`
+  - `app/Http/Controllers/Paquetes/AccesoCuentas/CU02_CambiarContrasena/RecuperarContrasenaControlador.php`
   - `app/Http/Requests/Paquetes/AccesoCuentas/CU02_CambiarContrasena/CambiarContrasenaRequest.php`
+  - `app/Http/Requests/Paquetes/AccesoCuentas/CU02_CambiarContrasena/SolicitarRecuperacionRequest.php`
+  - `app/Http/Requests/Paquetes/AccesoCuentas/CU02_CambiarContrasena/VerificarCodigoRecuperacionRequest.php`
+  - `app/Http/Requests/Paquetes/AccesoCuentas/CU02_CambiarContrasena/RestablecerContrasenaRequest.php`
   - `app/Paquetes/AccesoCuentas/CU02_CambiarContrasena/CambiarContrasenaServicio.php`
+  - `app/Paquetes/AccesoCuentas/CU02_CambiarContrasena/RecuperarContrasenaServicio.php`
   - `app/Nucleo/Bitacora/ServicioBitacora.php`
 * **Entidad (Entity):**
-  - Tablas: `usuarios`, `bitacora_auditoria`.
+  - Tablas: `usuarios`, `codigos_recuperacion`, `bitacora_auditoria`.
 
 ##### 2. Diagrama de Secuencia
 ```text
@@ -1124,7 +1131,7 @@ end
 | CU | Paquete | Frontera (Boundary) | Control (Controlador / Request / Servicio) | Entidad (Entity) |
 | :--- | :--- | :--- | :--- | :--- |
 | **CU-01** | `AccesoCuentas` | `PaginaLogin.jsx`, `SelectorPerfilLogin.jsx`, `LayoutPrincipal.jsx` | `IniciarCerrarSesionControlador`, `IniciarSesionRequest`, `IniciarCerrarSesionServicio` | `usuarios`, `personas`, `roles`, `bitacora_auditoria` |
-| **CU-02** | `AccesoCuentas` (Cambiar y recuperar contraseña) | `ModalRecuperarPassword.jsx`, `ModalCambiarContrasena.jsx` | `CambiarContrasenaControlador`, `CambiarContrasenaRequest`, `CambiarContrasenaServicio` | `usuarios`, `bitacora_auditoria` |
+| **CU-02** | `AccesoCuentas` (Cambiar y recuperar contraseña) | `ModalRecuperarContrasena.jsx`, `ModalRecuperarPassword.jsx`, `ModalCambiarContrasena.jsx` | `CambiarContrasenaControlador`, `RecuperarContrasenaControlador`, `CambiarContrasenaRequest`, `SolicitarRecuperacionRequest`, `VerificarCodigoRecuperacionRequest`, `RestablecerContrasenaRequest`, `CambiarContrasenaServicio`, `RecuperarContrasenaServicio` | `usuarios`, `codigos_recuperacion`, `bitacora_auditoria` |
 | **CU-03** | `AccesoCuentas` | `PaginaRegistroPaciente.jsx` | `RegistrarsePacienteControlador`, `RegistrarsePacienteRequest`, `RegistrarsePacienteServicio` | `personas`, `usuarios`, `pacientes`, `bitacora_auditoria` |
 | **CU-04** | `AccesoCuentas` | `PaginaUsuariosRoles.jsx` | `AdministrarUsuariosRolesControlador`, `GuardarUsuarioRequest`, `AdministrarUsuariosRolesServicio` | `usuarios`, `personas`, `roles`, `permisos`, `rol_permiso` |
 | **CU-05** | `PacientesPerfil` | `PaginaGestionPacientes.jsx`, `TablaExpandible.jsx` | `GestionarPacientesControlador`, `GuardarPacienteRequest`, `GestionarPacientesServicio` | `pacientes`, `personas`, `contactos_emergencia`, `bitacora_auditoria` |
@@ -1140,7 +1147,7 @@ end
 | **CU-15** | `CitasNotificaciones` | `PaginaHistorialCitas.jsx`, `TablaExpandible.jsx`, `InsigniaEstadoPago.jsx` | `HistorialSeguimientoCitasControlador`, `HistorialSeguimientoCitasServicio` | `citas`, `pagos_cita`, `estados_cita`, `especialidades`, `medicos` |
 | **CU-16** | `CitasNotificaciones` | `CampanaNotificaciones.jsx`, `HeaderSuperior.jsx` | `EnviarNotificacionesControlador`, `EnviarNotificacionesServicio` | `notificaciones`, `citas`, `pacientes`, `usuarios` |
 | **CU-17** | `HistoriaClinica` | `PaginaKardexPacientes.jsx`, `TablaExpandible.jsx` | `ConsultarMisPacientesControlador`, `ConsultarMisPacientesServicio` | `pacientes`, `personas`, `citas`, `atenciones_clinicas`, `informacion_medica_paciente` |
-| **CU-18** | `HistoriaClinica` | `FormularioAtencionClinica.jsx` | `RegistrarAtencionClinicaControlador`, `RegistrarAtencionRequest`, `RegistrarAtencionServicio` | `atenciones_clinicas`, `citas`, `recetas_medicas`, `bitacora_auditoria` |
+| **CU-18** | `HistoriaClinica` | `FormularioAtencionClinica.jsx` | `RegistrarAtencionClinicaControlador`, `RegistrarAtencionRequest`, `RegistrarAtencionServicio` | `atenciones_clinicas`, `citas`, `bitacora_auditoria` |
 | **CU-19** | `HistoriaClinica` | `ModalResultadosLab.jsx` | `ResultadosLaboratorioControlador`, `RegistrarLaboratorioRequest`, `ResultadosLaboratorioServicio` | `resultados_laboratorio`, `pacientes`, `bitacora_auditoria` |
 | **CU-20** | `HistoriaClinica` | `PaginaHistorialClinico.jsx`, `TablaExpandible.jsx` | `ConsultarHistorialClinicoControlador`, `ConsultarHistorialClinicoServicio` | `pacientes`, `personas`, `atenciones_clinicas`, `resultados_laboratorio`, `citas` |
 | **CU-21** | `Reportes` | `PaginaReportes.jsx` | `ReportesCitasControlador`, `ReportesCitasServicio` | `citas`, `especialidades`, `medicos`, `estados_cita` |
@@ -1231,7 +1238,7 @@ end
 
 ### 5.4. Verificación Automatizada de Pruebas
 
-Para validar los 20 requisitos esenciales del sistema de forma local:
+Para validar la suite completa de pruebas (20 casos de verificación funcional + 1 prueba de alta concurrencia simultánea):
 ```bash
 php backend/tests/ejecutar_20_pruebas.php
 ```
